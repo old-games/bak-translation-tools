@@ -1,0 +1,3 @@
+[submodule "xbak"]
+	path = xbak
+	url = git@github.com:andreyfedoseev/betrayal-at-krondor.git
