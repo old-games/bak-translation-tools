@@ -3,7 +3,6 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-from compression import decompressRLE
 from filebuffer import FileBuffer
 
 parser = argparse.ArgumentParser(description="Operations on the font files")
@@ -91,14 +90,10 @@ class Font:
             raise ValueError(f"Compression error: {path}")
 
         glyphbuf_size = buf.uint32LE()
-        glyphbuf = decompressRLE(buf, glyphbuf_size)
+        glyphbuf = buf.decompressRLE(glyphbuf_size)
 
-        try:
-            next(buf.io)
-        except StopIteration:
-            pass
-        else:
-            raise AssertionError("Not all data is consumed")
+        if not buf.at_end():
+            raise ValueError("Not all data is consumed")
 
         glyph_offsets: list[int] = [glyphbuf.uint16LE() for _ in range(num_chars)]
         glyph_widths: list[int] = [glyphbuf.uint8() for _ in range(num_chars)]

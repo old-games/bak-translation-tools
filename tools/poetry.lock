@@ -1,0 +1,20 @@
+[[package]]
+name = "filebuffer"
+version = "0.0.1"
+description = "filebuffer"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+develop = true
+
+[package.source]
+type = "directory"
+url = "lib/filebuffer"
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.10"
+content-hash = "d06d3b8ef90e6f95a50e42967b75cb8d69f97912db07a387049b02840cdec96d"
+
+[metadata.files]
+filebuffer = []
