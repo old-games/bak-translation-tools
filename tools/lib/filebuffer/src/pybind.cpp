@@ -12,6 +12,7 @@ PYBIND11_MODULE(_filebuffer, m)
         .def("GetBytesDone", &FileBuffer::GetBytesDone)
         .def("GetBytesLeft", &FileBuffer::GetBytesLeft)
         .def("AtEnd", &FileBuffer::AtEnd)
+        .def("GetSize", &FileBuffer::GetSize)
 
         .def("GetUint8", &FileBuffer::GetUint8)
         .def("GetUint16LE", &FileBuffer::GetUint16LE)
@@ -37,6 +38,8 @@ PYBIND11_MODULE(_filebuffer, m)
 
         .def("DecompressRLE", [](FileBuffer &b, FileBuffer &result)
              { b.DecompressRLE(&result); })
+        .def("CompressRLE", [](FileBuffer &b, FileBuffer &result)
+             { return b.CompressRLE(&result); })
 
         ;
 }

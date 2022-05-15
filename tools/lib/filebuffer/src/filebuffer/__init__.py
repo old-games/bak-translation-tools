@@ -7,6 +7,9 @@ class FileBuffer:
     def __init__(self, size: int):
         self._fb = _filebuffer.FileBuffer(size)
 
+    def size(self):
+        return self._fb.GetSize()
+
     def uint8(self) -> int:
         return self._fb.GetUint8()
 
@@ -26,7 +29,7 @@ class FileBuffer:
         self._fb.PutUint32LE(v)
 
     def string(self, length: int) -> str:
-        return self.read(length).decode("cp1251")
+        return self.read(length).rstrip(b"\x00").decode("cp1251")
 
     def put_string(self, v: str, length: int) -> None:
         self.write(v.encode(encoding="cp1251"))
@@ -73,3 +76,15 @@ class FileBuffer:
         fb = FileBuffer(uncompressed_size)
         self._fb.DecompressRLE(fb._fb)
         return fb
+
+    def compressRLE(self) -> tuple[int, "FileBuffer"]:
+        current = self.tell()
+        self.seek(0)
+        uncompressed_size = self.size()
+        temp = FileBuffer(uncompressed_size)
+        compressed_size = self._fb.CompressRLE(temp._fb)
+        self.seek(current)
+        fb = FileBuffer(compressed_size)
+        fb.write(temp.read(compressed_size))
+        fb.seek(0)
+        return compressed_size, fb
