@@ -98,14 +98,24 @@ def archive_resources(resource_list_path: Path, save_to: Path):
 
     # Save `krondor.001`
     offsets_and_hashes: list[tuple[int, int]] = []
-    resource_archive_buffer = FileBuffer()
+    resource_archive_size = 0
+    with open(resource_list_path) as resource_list_file:
+        resource_list_reader = csv.reader(resource_list_file)
+        next(resource_list_reader)
+        for resource_name, hashkey in resource_list_reader:
+            resource_path = resource_dir_path / resource_name
+            if not resource_path.exists():
+                raise ValueError(f"{resource_path} does not exist")
+            resource_archive_size += RES_FILENAME_LEN
+            resource_archive_size += 4  # resource size
+            resource_archive_size += resource_path.stat().st_size
+
+    resource_archive_buffer = FileBuffer(resource_archive_size)
     with open(resource_list_path) as resource_list_file:
         resource_list_reader = csv.reader(resource_list_file)
         resource_map_name, resource_archive_name = next(resource_list_reader)
         for resource_name, hashkey in resource_list_reader:
             resource_path = resource_dir_path / resource_name
-            if not resource_path.exists():
-                raise ValueError(f"{resource_path} does not exist")
             resource = Resource(
                 name=resource_name,
                 hashkey=int(hashkey),
@@ -117,7 +127,8 @@ def archive_resources(resource_list_path: Path, save_to: Path):
     resource_archive_buffer.to_file(save_to / resource_archive_name)
 
     # Save `krondor.rmf`
-    resource_map_buffer = FileBuffer()
+    resource_map_size = 4 + 2 + RES_FILENAME_LEN + 2 + 8 * len(offsets_and_hashes)
+    resource_map_buffer = FileBuffer(resource_map_size)
     resource_map_buffer.put_uint32LE(1)
     resource_map_buffer.put_uint16LE(4)
     resource_map_buffer.put_string(resource_archive_name, RES_FILENAME_LEN)
