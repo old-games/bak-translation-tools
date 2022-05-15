@@ -1,4 +1,12 @@
 [[package]]
+name = "bitstring"
+version = "3.1.9"
+description = "Simple construction, analysis and modification of binary data."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "filebuffer"
 version = "0.0.1"
 description = "filebuffer"
@@ -14,7 +22,12 @@ url = "lib/filebuffer"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "d06d3b8ef90e6f95a50e42967b75cb8d69f97912db07a387049b02840cdec96d"
+content-hash = "cf579bc630cff42a34de6872673f125365488a0b9cb7385a8f6e9f1c4dd6bbd1"
 
 [metadata.files]
+bitstring = [
+    {file = "bitstring-3.1.9-py2-none-any.whl", hash = "sha256:e3e340e58900a948787a05e8c08772f1ccbe133f6f41fe3f0fa19a18a22bbf4f"},
+    {file = "bitstring-3.1.9-py3-none-any.whl", hash = "sha256:0de167daa6a00c9386255a7cac931b45e6e24e0ad7ea64f1f92a64ac23ad4578"},
+    {file = "bitstring-3.1.9.tar.gz", hash = "sha256:a5848a3f63111785224dca8bb4c0a75b62ecdef56a042c8d6be74b16f7e860e7"},
+]
 filebuffer = []

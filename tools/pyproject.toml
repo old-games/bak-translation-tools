@@ -7,6 +7,7 @@ authors = ["Andrey Fedoseev <andrey@andreyfedoseev.com>"]
 [tool.poetry.dependencies]
 python = "^3.10"
 filebuffer = { path = "./lib/filebuffer", develop = true }
+bitstring = "^3.1.9"
 
 [tool.poetry.dev-dependencies]
 
