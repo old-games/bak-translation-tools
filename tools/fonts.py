@@ -2,6 +2,7 @@
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+import bitstring
 
 from filebuffer import FileBuffer
 
@@ -13,6 +14,10 @@ parser_display.add_argument(
     "font_path", metavar="FONT_PATH", help="Path to .FNT file", type=Path
 )
 
+parser_copy = subparsers.add_parser("copy")
+parser_copy.add_argument("src", metavar="SRC", help="Path to .FNT file", type=Path)
+parser_copy.add_argument("dest", metavar="DEST", help="Path to .FNT file", type=Path)
+
 
 def main() -> None:
 
@@ -20,6 +25,9 @@ def main() -> None:
 
     if args.command == "display":
         display_font(args.font_path)
+
+    elif args.command == "copy":
+        copy_font(args.src, args.dest)
 
     else:
         raise AssertionError()
@@ -46,18 +54,52 @@ def display_font(font_path: Path) -> None:
         print("\n\n\n")
 
 
+def copy_font(src: Path, dest: Path) -> None:
+    font = Font.from_file(src)
+    dest_dir = dest.parent
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    font.to_file(dest)
+
+
 @dataclass
 class Glyph:
 
     width: int
     rows: list[int]
 
-    def to_pixels(self) -> list[list[int]]:
-        pixels: list[list[int]] = []
-        bits = 16 if self.width > 8 else 8
+    def to_pixels(self) -> list[bitstring.Bits]:
+        pixels: list[bitstring.Bits] = []
         for row in self.rows:
-            pixels.append([(row >> (bits - x - 1)) & 1 for x in range(self.width)])
+            pixels.append(bitstring.Bits(uint=row, length=16)[: self.width])
         return pixels
+
+    @classmethod
+    def from_pixels(cls, pixels: list[bitstring.Bits]) -> "Glyph":
+        width = len(pixels[0])
+        suffix = bitstring.Bits(uint=0, length=16 - width)
+        pixels = [row + suffix for row in pixels]
+        return cls(width=width, rows=[row.uint for row in pixels])
+
+
+SMILING_FACE = Glyph.from_pixels(
+    [
+        bitstring.Bits("0b000000000"),
+        bitstring.Bits("0b011111100"),
+        bitstring.Bits("0b100000010"),
+        bitstring.Bits("0b101001010"),
+        bitstring.Bits("0b100000010"),
+        bitstring.Bits("0b101111010"),
+        bitstring.Bits("0b100000010"),
+        bitstring.Bits("0b011111100"),
+        bitstring.Bits("0b000000000"),
+        bitstring.Bits("0b000000000"),
+        bitstring.Bits("0b000000000"),
+        bitstring.Bits("0b000000000"),
+        bitstring.Bits("0b000000000"),
+        bitstring.Bits("0b000000000"),
+        bitstring.Bits("0b000000000"),
+    ]
+)
 
 
 @dataclass
@@ -67,6 +109,7 @@ class Font:
     height: int
     first: int
     glyphs: list[Glyph]
+    skips: list[bytes]
 
     @classmethod
     def from_file(cls, path: Path) -> "Font":
@@ -77,14 +120,15 @@ class Font:
 
         _ = buf.uint32LE()  # size of the tagged content
 
-        buf.skip(2)
+        skips: list[bytes] = []
+        skips.append(buf.read(2))
         height = buf.uint8()
 
-        buf.skip(1)
+        skips.append(buf.read(1))
         first = buf.uint8()
         num_chars = buf.uint8()
 
-        buf.skip(2)
+        skips.append(buf.read(2))
 
         if buf.uint8() != 1:
             raise ValueError(f"Compression error: {path}")
@@ -105,9 +149,8 @@ class Font:
             glyphbuf.seek(glyph_data_start + offset)
             rows = []
             for _ in range(height):
-                row = glyphbuf.uint8()
+                row = glyphbuf.uint8() << 8
                 if width > 8:
-                    row = row << 8
                     row += glyphbuf.uint8()
                 rows.append(row)
             glyphs.append(
@@ -122,7 +165,79 @@ class Font:
             height=height,
             first=first,
             glyphs=glyphs,
+            skips=skips,
         )
+
+    def to_file(self, path: Path) -> None:
+        num_chars = len(self.glyphs)
+        glyph_sizes = [
+            self.height * (1 if glyph.width <= 8 else 2) for glyph in self.glyphs
+        ]
+        glyph_data_length = sum(glyph_sizes)
+
+        glyph_offsets = [0]
+        for size in glyph_sizes[:-1]:
+            glyph_offsets.append(glyph_offsets[-1] + size)
+
+        glyph_widths = [g.width for g in self.glyphs]
+
+        glyph_offsets_length = 2 * num_chars
+        glyph_widths_length = 1 * num_chars
+        uncompressed_size = (
+            glyph_offsets_length + glyph_widths_length + glyph_data_length
+        )
+        glyphbuf_uncompressed = FileBuffer(uncompressed_size)
+        for offset in glyph_offsets:
+            glyphbuf_uncompressed.put_uint16LE(offset)
+        for width in glyph_widths:
+            glyphbuf_uncompressed.put_uint8(width)
+        for glyph in self.glyphs:
+            for row in glyph.rows:
+                glyphbuf_uncompressed.put_uint8(row // 256)
+                if glyph.width > 8:
+                    glyphbuf_uncompressed.put_uint8(row % 256)
+
+        compressed_size, glyphbuf_compressed = glyphbuf_uncompressed.compressRLE()
+
+        buf = FileBuffer(
+            4  # Tag
+            + 4  # Tagged content size
+            + 2  # Skip 2
+            + 1  # Height
+            + 1  # Skip 1
+            + 1  # First char
+            + 1  # Num Chars
+            + 2  # Glyphbuf size - trimmed
+            + 1  # Compression type (1)
+            + 4  # Glyphbuf size
+            + compressed_size
+        )
+
+        buf.put_uint32LE(0x3A544E46)
+
+        buf.put_uint32LE(buf.size() - 8)  # size of the tagged content
+
+        # Skip 2
+        buf.write(self.skips.pop(0))
+
+        buf.put_uint8(self.height)
+
+        # Skip 1
+        buf.write(self.skips.pop(0))
+
+        buf.put_uint8(self.first)
+        buf.put_uint8(num_chars)
+
+        # Skip 2
+        buf.put_uint16LE(uncompressed_size % 65536)
+        # buf.write(self.skips.pop(0))
+
+        buf.put_uint8(1)  # Compression type
+        buf.put_uint32LE(uncompressed_size)  # Glyphbuf size
+
+        buf.write(glyphbuf_compressed.read())
+
+        buf.to_file(path)
 
 
 if __name__ == "__main__":
