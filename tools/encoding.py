@@ -2,9 +2,9 @@ from io import StringIO
 
 
 CyrillicText = str
-ASCIIText = bytes
+ASCIIText = str
 
-TRANLITERATION_TABLE = {
+TRANSLITERATION_TABLE = {
     " ": 0x20,
     "!": 0x21,
     '"': 0x22,
@@ -122,6 +122,6 @@ TRANLITERATION_TABLE = {
 def encode(s: CyrillicText) -> ASCIIText:
     buf = StringIO()
     for char in s:
-        buf.write(chr(TRANLITERATION_TABLE.get(char, ord(char))))
+        buf.write(chr(TRANSLITERATION_TABLE.get(char, ord(char))))
     buf.seek(0)
-    return buf.read().encode("ascii")
+    return buf.read()
