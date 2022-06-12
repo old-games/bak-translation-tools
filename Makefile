@@ -7,8 +7,7 @@ extract:
 
 
 archive-modified:
-	find ./data/modified -type f | xargs -I{} cp {} ./data/extracted/
-	cd ./tools && poetry run python3 resources.py archive ../data/extracted/_resources.csv ../data/archived
+	cd ./tools && poetry run python3 resources.py archive-modified ../data/original/krondor.rmf ../data/modified/ ../data/archived/
 
 .PHONY : archive
 

@@ -2,7 +2,10 @@
 import argparse
 import csv
 from dataclasses import dataclass
+import os
 from pathlib import Path
+import shutil
+from tempfile import mkdtemp
 from typing import Iterable
 
 from filebuffer import FileBuffer
@@ -42,6 +45,26 @@ parser_archive.add_argument(
 )
 
 
+parser_archive_modified = subparsers.add_parser(
+    "archive-modified", help="Archive the modified resources"
+)
+parser_archive_modified.add_argument(
+    "resource_map_path",
+    metavar="RESOURCE_MAP",
+    help="Path to original krondor.rmf",
+    type=Path,
+)
+parser_archive_modified.add_argument(
+    "modified_dir",
+    metavar="MODIFIED_DIR",
+    help="Location of the modified files",
+    type=Path,
+)
+parser_archive_modified.add_argument(
+    "save_to", metavar="SAVE_TO", help="Where to save the archive", type=Path
+)
+
+
 RES_FILENAME_LEN = 13
 RESOURCE_LIST_NAME = "_resources.csv"
 
@@ -58,6 +81,11 @@ def main():
 
     elif args.command == "archive":
         archive_resources(args.resource_list_path, args.save_to)
+
+    elif args.command == "archive-modified":
+        archive_modified_resources(
+            args.resource_map_path, args.modified_dir, args.save_to
+        )
 
     else:
         raise AssertionError()
@@ -137,6 +165,17 @@ def archive_resources(resource_list_path: Path, save_to: Path):
         resource_map_buffer.put_uint32LE(hashnum)
         resource_map_buffer.put_uint32LE(offset)
     resource_map_buffer.to_file(save_to / resource_map_name)
+
+
+def archive_modified_resources(
+    resource_map_path: Path, modified_dir: Path, save_to: Path
+) -> None:
+    tmpdir = Path(mkdtemp())
+    extract_resources(resource_map_path, tmpdir)
+    for filename in os.listdir(modified_dir):
+        shutil.copy(modified_dir / filename, tmpdir)
+    archive_resources(tmpdir / "_resources.csv", save_to)
+    shutil.rmtree(tmpdir)
 
 
 @dataclass
