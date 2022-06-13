@@ -67,37 +67,43 @@ class Glyph:
     width: int
     rows: list[int]
 
-    def to_pixels(self) -> list[bitstring.Bits]:
-        pixels: list[bitstring.Bits] = []
+    def to_pixels(self) -> list[bitstring.BitArray]:
+        pixels: list[bitstring.BitArray] = []
         for row in self.rows:
-            pixels.append(bitstring.Bits(uint=row, length=16)[: self.width])
+            pixels.append(bitstring.BitArray(uint=row, length=16)[: self.width])
         return pixels
 
     @classmethod
-    def from_pixels(cls, pixels: list[bitstring.Bits]) -> "Glyph":
+    def from_pixels(cls, pixels: list[bitstring.BitArray]) -> "Glyph":
         width = len(pixels[0])
-        suffix = bitstring.Bits(uint=0, length=16 - width)
+        suffix = bitstring.BitArray(uint=0, length=16 - width)
         pixels = [row + suffix for row in pixels]
         return cls(width=width, rows=[row.uint for row in pixels])
+
+    def copy(self) -> "Glyph":
+        return Glyph(
+            width=self.width,
+            rows=list(self.rows),
+        )
 
 
 SMILING_FACE = Glyph.from_pixels(
     [
-        bitstring.Bits("0b000000000"),
-        bitstring.Bits("0b011111100"),
-        bitstring.Bits("0b100000010"),
-        bitstring.Bits("0b101001010"),
-        bitstring.Bits("0b100000010"),
-        bitstring.Bits("0b101111010"),
-        bitstring.Bits("0b100000010"),
-        bitstring.Bits("0b011111100"),
-        bitstring.Bits("0b000000000"),
-        bitstring.Bits("0b000000000"),
-        bitstring.Bits("0b000000000"),
-        bitstring.Bits("0b000000000"),
-        bitstring.Bits("0b000000000"),
-        bitstring.Bits("0b000000000"),
-        bitstring.Bits("0b000000000"),
+        bitstring.BitArray("0b000000000"),
+        bitstring.BitArray("0b011111100"),
+        bitstring.BitArray("0b100000010"),
+        bitstring.BitArray("0b101001010"),
+        bitstring.BitArray("0b100000010"),
+        bitstring.BitArray("0b101111010"),
+        bitstring.BitArray("0b100000010"),
+        bitstring.BitArray("0b011111100"),
+        bitstring.BitArray("0b000000000"),
+        bitstring.BitArray("0b000000000"),
+        bitstring.BitArray("0b000000000"),
+        bitstring.BitArray("0b000000000"),
+        bitstring.BitArray("0b000000000"),
+        bitstring.BitArray("0b000000000"),
+        bitstring.BitArray("0b000000000"),
     ]
 )
 

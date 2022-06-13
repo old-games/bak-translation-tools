@@ -119,6 +119,9 @@ TRANSLITERATION_TABLE = {
 }
 
 
+INVERSE_TRANSLITERATION_TABLE = {v: k for k, v in TRANSLITERATION_TABLE.items()}
+
+
 def encode(s: CyrillicText) -> ASCIIText:
     buf = StringIO()
     for char in s:
