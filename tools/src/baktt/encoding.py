@@ -1,6 +1,5 @@
 from io import StringIO
 
-
 CyrillicText = str
 ASCIIText = str
 

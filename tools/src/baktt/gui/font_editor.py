@@ -12,8 +12,15 @@ from tkinter.ttk import LabelFrame
 from typing import Optional
 
 import bitstring
-from encoding import INVERSE_TRANSLITERATION_TABLE
-from fonts import Font, Glyph
+
+from ..encoding import INVERSE_TRANSLITERATION_TABLE
+from ..fonts import Font, Glyph
+
+HI_RES = False
+
+
+def scale(size: int) -> int:
+    return size if HI_RES else size // 2
 
 
 @dataclass
@@ -79,9 +86,13 @@ class Application(tk.Frame):
     BASE_TITLE = "Betrayal at Krondor Font Editor"
 
     def __init__(self, root: tk.Tk, font_path: Optional[Path] = None):
-        super().__init__(root, padx=5, pady=5)
+        self.label_frame_padding = scale(10)
+        self.frame_padding = scale(5)
+
+        super().__init__(root, padx=self.frame_padding, pady=self.frame_padding)
         self.root = root
         self.root.title(self.BASE_TITLE)
+
         self.grid()
         self.create_widgets()
         self.font: Optional[Font] = None
@@ -101,20 +112,28 @@ class Application(tk.Frame):
 
         # List of characters
         self.available_characters_frame = LabelFrame(
-            self, text="Characters", padding=10
+            self, text="Characters", padding=self.label_frame_padding
         )
-        self.available_characters_frame.pack(side=tk.LEFT, padx=5, pady=5)
+        self.available_characters_frame.pack(
+            side=tk.LEFT, padx=self.frame_padding, pady=self.frame_padding
+        )
 
-        right_panel = tk.Frame(self, width=500)
+        right_panel = tk.Frame(self, width=scale(500))
         right_panel.pack(side=tk.RIGHT, fill=tk.BOTH)
 
         # Editor area
-        self.editor_frame = LabelFrame(right_panel, text="Editor", padding=10)
-        self.editor_frame.pack(side=tk.TOP, padx=5, pady=5, fill=tk.BOTH)
+        self.editor_frame = LabelFrame(
+            right_panel, text="Editor", padding=self.label_frame_padding
+        )
+        self.editor_frame.pack(
+            side=tk.TOP, padx=self.frame_padding, pady=self.frame_padding, fill=tk.BOTH
+        )
 
         # Editor controls
         self.editor_controls_frame = tk.Frame(right_panel)
-        self.editor_controls_frame.pack(side=tk.TOP, padx=5, pady=5, fill=tk.X)
+        self.editor_controls_frame.pack(
+            side=tk.TOP, padx=self.frame_padding, pady=self.frame_padding, fill=tk.X
+        )
 
         # Character width control
         self.character_width_control_value = tk.StringVar()
@@ -197,7 +216,7 @@ class Application(tk.Frame):
 
         for i, character in enumerate(self.characters):
             drawn_glyph = DrawnGlyph(
-                self.available_characters_frame, self.font.height, 4, 4
+                self.available_characters_frame, self.font.height, scale(4), scale(4)
             )
             character_btn = tk.Button(
                 self.available_characters_frame,
@@ -238,7 +257,7 @@ class Application(tk.Frame):
         self.character_width_control_value.set(str(glyph.width))
 
         drawn_glyph = DrawnGlyph(
-            self.editor_frame, self.font.height, 30, 30, outline="gray"
+            self.editor_frame, self.font.height, scale(30), scale(30), outline="gray"
         )
         character.edited_drawn_glyph = drawn_glyph
         drawn_glyph.draw(glyph)
@@ -258,8 +277,8 @@ class Application(tk.Frame):
     @debug_log
     def edit_pixel(self, x, y, erase):
         assert self.edited_character
-        row_idx = y // 30
-        col_idx = x // 30
+        row_idx = y // scale(30)
+        col_idx = x // scale(30)
         if col_idx >= self.edited_character.glyph.width:
             return
 
@@ -358,6 +377,9 @@ def start_gui(font_path: Optional[Path] = None):
     root = tk.Tk()
     root.resizable(width=False, height=False)
     root.option_add("*tearOff", tk.FALSE)
+    if root.winfo_screenwidth() > 1920:
+        global HI_RES
+        HI_RES = True
     app = Application(root, font_path=font_path)
     app.mainloop()
 

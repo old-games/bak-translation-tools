@@ -1,10 +1,10 @@
 #!/bin/env python3
 import argparse
 import csv
-from dataclasses import dataclass
 import os
-from pathlib import Path
 import shutil
+from dataclasses import dataclass
+from pathlib import Path
 from tempfile import mkdtemp
 from typing import Iterable
 

@@ -1,13 +1,14 @@
 import argparse
+import os
 from dataclasses import dataclass, field
 from io import BytesIO
-import os
 from pathlib import Path
 from typing import Iterable
-from filebuffer import FileBuffer
-from csvtools import save_sections, load_sections, Section
-from encoding import encode
 
+from filebuffer import FileBuffer
+
+from .csvtools import Section, load_sections, save_sections
+from .encoding import encode
 
 parser = argparse.ArgumentParser(description="Operations on the book files")
 subparsers = parser.add_subparsers(dest="command", required=True)

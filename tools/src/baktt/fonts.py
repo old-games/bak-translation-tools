@@ -2,8 +2,8 @@
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-import bitstring
 
+import bitstring
 from filebuffer import FileBuffer
 
 parser = argparse.ArgumentParser(description="Operations on the font files")
