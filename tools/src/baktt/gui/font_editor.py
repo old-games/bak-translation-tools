@@ -13,8 +13,8 @@ from typing import Optional
 
 import bitstring
 
-from ..encoding import INVERSE_TRANSLITERATION_TABLE
-from ..fonts import Font, Glyph
+from baktt.encoding import INVERSE_TRANSLITERATION_TABLE
+from baktt.fonts import Font, Glyph
 
 HI_RES = False
 

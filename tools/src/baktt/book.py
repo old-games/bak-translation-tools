@@ -7,8 +7,8 @@ from typing import Iterable
 
 from filebuffer import FileBuffer
 
-from .csvtools import Section, load_sections, save_sections
-from .encoding import encode
+from baktt.csvtools import Section, load_sections, save_sections
+from baktt.encoding import encode
 
 parser = argparse.ArgumentParser(description="Operations on the book files")
 subparsers = parser.add_subparsers(dest="command", required=True)
