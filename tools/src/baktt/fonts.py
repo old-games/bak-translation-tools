@@ -224,19 +224,18 @@ class Font:
         buf.put_uint32LE(buf.size() - 8)  # size of the tagged content
 
         # Skip 2
-        buf.write(self.skips.pop(0))
+        buf.write(self.skips[0])
 
         buf.put_uint8(self.height)
 
         # Skip 1
-        buf.write(self.skips.pop(0))
+        buf.write(self.skips[1])
 
         buf.put_uint8(self.first)
         buf.put_uint8(num_chars)
 
         # Skip 2
         buf.put_uint16LE(uncompressed_size % 65536)
-        # buf.write(self.skips.pop(0))
 
         buf.put_uint8(1)  # Compression type
         buf.put_uint32LE(uncompressed_size)  # Glyphbuf size
