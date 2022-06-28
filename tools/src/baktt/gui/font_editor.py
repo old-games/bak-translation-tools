@@ -105,6 +105,8 @@ class Application(tk.Frame):
         else:
             self.open_font_dialog()
 
+        self.copied_glyph: Optional[Glyph] = None
+
     def create_widgets(self):
         top = self.winfo_toplevel()
         self.menu_bar = tk.Menu(top)
@@ -139,9 +141,9 @@ class Application(tk.Frame):
         self.character_width_control_value = tk.StringVar()
         self.character_width_control = tk.Spinbox(
             self.editor_controls_frame,
-            values=[str(i) for i in range(2, 17)],
+            values=[str(i) for i in range(1, 17)],
             width=2,
-            state="readonly",
+            state="disabled",
             textvariable=self.character_width_control_value,
             command=self.set_character_width,
         )
@@ -149,6 +151,15 @@ class Application(tk.Frame):
         tk.Label(self.editor_controls_frame, text="Character width: ").pack(
             side=tk.RIGHT
         )
+
+        # Clear character button
+        self.clear_character_button = tk.Button(
+            self.editor_controls_frame,
+            text="Clear",
+            command=self.clear_editor,
+            state="disabled",
+        )
+        self.clear_character_button.pack(side=tk.LEFT)
 
         # Menu Bar
         self.menu_bar.add_command(
@@ -164,6 +175,8 @@ class Application(tk.Frame):
         self.root.bind("<Control-s>", lambda _: self.save())
         self.root.bind("<Control-z>", lambda _: self.undo())
         self.root.bind("<Control-q>", lambda _: self.quit())
+        self.root.bind("<Control-c>", lambda _: self.copy_glyph())
+        self.root.bind("<Control-v>", lambda _: self.paste_glyph())
 
     @property
     def font_path(self) -> Optional[Path]:
@@ -249,7 +262,10 @@ class Application(tk.Frame):
 
         if character is None:
             self.character_width_control.configure(state=tk.DISABLED)
+            self.clear_character_button.configure(state=tk.DISABLED)
             return
+
+        self.clear_character_button.configure(state=tk.NORMAL)
 
         glyph = character.glyph
 
@@ -307,7 +323,7 @@ class Application(tk.Frame):
     def set_character_width(self):
         assert self.edited_character is not None
         new_width = int(self.character_width_control_value.get())
-        assert 2 <= new_width <= 16
+        assert 1 <= new_width <= 16
         glyph = self.edited_character.glyph
         if new_width == glyph.width:
             return
@@ -351,6 +367,33 @@ class Application(tk.Frame):
             return
         self.font_path = Path(filename)
         self.save()
+
+    @debug_log
+    def clear_editor(self):
+        assert self.edited_character is not None
+        assert self.font is not None
+        self.undo_stack.append(self.edited_character.glyph)
+        self.edited_character.glyph = Glyph(
+            width=self.edited_character.glyph.width, rows=[0] * self.font.height
+        )
+        self.edited_character.redraw()
+
+    @debug_log
+    def copy_glyph(self):
+        if self.edited_character is None:
+            return
+        self.copied_glyph = self.edited_character.glyph.copy()
+
+    @debug_log
+    def paste_glyph(self):
+        if self.edited_character is None:
+            return
+        if self.copied_glyph is None:
+            return
+        self.undo_stack.append(self.edited_character.glyph)
+        self.character_width_control_value.set(str(self.copied_glyph.width))
+        self.edited_character.glyph = self.copied_glyph.copy()
+        self.edited_character.redraw()
 
 
 @dataclass
