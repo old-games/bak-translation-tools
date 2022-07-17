@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include "FileBuffer.h"
+#include "Exception.h"
 
 namespace py = pybind11;
 
@@ -40,6 +41,12 @@ PYBIND11_MODULE(_filebuffer, m)
              { b.DecompressRLE(&result); })
         .def("CompressRLE", [](FileBuffer &b, FileBuffer &result)
              { return b.CompressRLE(&result); })
+
+        .def("DecompressLZW", [](FileBuffer &b, FileBuffer &result)
+             { b.DecompressLZW(&result); })
+
+        .def("DecompressLZSS", [](FileBuffer &b, FileBuffer &result)
+             { b.DecompressLZSS(&result); })
 
         ;
 }

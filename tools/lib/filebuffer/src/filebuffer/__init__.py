@@ -88,3 +88,13 @@ class FileBuffer:
         fb.write(temp.read(compressed_size))
         fb.seek(0)
         return compressed_size, fb
+
+    def decompressLZW(self, uncompressed_size: int) -> "FileBuffer":
+        fb = FileBuffer(uncompressed_size)
+        self._fb.DecompressLZW(fb._fb)
+        return fb
+
+    def decompressLZSS(self, uncompressed_size: int) -> "FileBuffer":
+        fb = FileBuffer(uncompressed_size)
+        self._fb.DecompressLZSS(fb._fb)
+        return fb

@@ -15,6 +15,7 @@ classifiers = [
 description = ""
 dependencies = [
     "bitstring==3.1.9",
+    "Pillow==9.2.0",
 ]
 
 [tool.setuptools.packages.find]

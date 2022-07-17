@@ -42,7 +42,8 @@ pip3 install -e ./tools
 
  - `python3 -m baktt.resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
  - `python3 -m baktt.fonts` - Operations on the font files (.FNT)
- - `python3 -m baktt.book` - Operations on the book files (.FNT)
+ - `python3 -m baktt.book` - Operations on the book files (.BOK)
+ - `python3 -m baktt.images` - Operations on the image files (.PAL, .SCX, .BMX)
 
 Use `--help` flag to see the available options.
 
@@ -56,7 +57,7 @@ Use `--help` flag to see the available options.
 ## TODO/Status
 
  - [x] Extract/archive resource files
- - [0] Font editor
+ - [ ] Font editor
    - [x] Compress Fonts
    - [x] GUI
      - [x] Basic Window
@@ -73,5 +74,7 @@ Use `--help` flag to see the available options.
      - [ ] Extract text
      - [ ] Pack text
  - [ ] Image Processing
-   - [ ] Extract images
+   - [x] Extract images
+     - [x] SCX
+     - [x] BMX
    - [ ] Pack images
