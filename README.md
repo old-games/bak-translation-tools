@@ -1,5 +1,7 @@
 # Betrayal at Krondor Translation Tools
 
+**Development moved to https://github.com/old-games/bak-translation-tools**
+
 This project is the is a set of tools for manipulating the resources
 of the Betrayal at Krondor video game to enable translation of the game to
 different languages (it was created to make a Russian translation, but may
