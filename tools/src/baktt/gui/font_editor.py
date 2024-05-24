@@ -25,7 +25,6 @@ def scale(size: int) -> int:
 
 @dataclass
 class DrawnGlyph:
-
     pixel_height: int
     pixel_width: int
     canvas: tk.Canvas
@@ -81,7 +80,6 @@ def debug_log(wrapped):
 
 
 class Application(tk.Frame):
-
     CHARACTERS_PER_ROW = 12
     BASE_TITLE = "Betrayal at Krondor Font Editor"
 
@@ -398,7 +396,6 @@ class Application(tk.Frame):
 
 @dataclass
 class Character:
-
     app: Application = field(repr=False)
     idx: int
     char: str
@@ -447,7 +444,6 @@ parser.add_argument(
 
 
 def main() -> None:
-
     args = parser.parse_args()
 
     logging.basicConfig()

@@ -11,9 +11,7 @@ from filebuffer import FileBuffer
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Operations on the font files"
-    )
+    parser = argparse.ArgumentParser(description="Operations on the font files")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     parser_copy_bmx = subparsers.add_parser("copy_bmx", help="Copy a BMX file")
@@ -149,7 +147,6 @@ def main() -> None:
 
 @dataclass
 class Image:
-
     FLAG_XYSWAPPED = 0x20
     FLAG_UNKNOWN = 0x40
     FLAG_COMPRESSED = 0x80
@@ -218,7 +215,6 @@ class Image:
 
 @dataclass
 class BMXResource:
-
     # noinspection SpellCheckingInspection
     PALETTES = {
         "ACT001.BMX": "ACT001.PAL",
@@ -729,9 +725,7 @@ class BMXResource:
             image_buf = FileBuffer(data_size)
             image_buf.write(decompressed_buf.read(data_size))
             image_buf.seek(0)
-            images.append(
-                Image.from_buf(image_buf, width, height, flags=flags)
-            )
+            images.append(Image.from_buf(image_buf, width, height, flags=flags))
 
         return BMXResource(
             compression=compression,
@@ -746,7 +740,6 @@ class UnknownPaletteError(Exception):
 
 @dataclass
 class SCXResource:
-
     SCREEN_WIDTH = 320
     SCREEN_HEIGHT = 200
     BOOK_SCREEN_WIDTH = 640
@@ -812,9 +805,7 @@ class SCXResource:
             width = cls.SCREEN_WIDTH
             height = cls.SCREEN_HEIGHT
             hires_locol = False
-        image = Image.from_buf(
-            decompressed_buf, width, height, hires_locol=hires_locol
-        )
+        image = Image.from_buf(decompressed_buf, width, height, hires_locol=hires_locol)
         return SCXResource(image=image)
 
     def to_file(self, path: Path) -> None:
@@ -822,7 +813,6 @@ class SCXResource:
 
 
 class Color(NamedTuple):
-
     r: int
     g: int
     b: int
@@ -835,7 +825,6 @@ class Color(NamedTuple):
 
 @dataclass
 class Palette:
-
     name: str
 
     colors: list[Color]
@@ -887,9 +876,7 @@ class Palette:
             col = i % 16
             x = col * rect_size
             y = row * rect_size
-            draw.rectangle(
-                (x, y, x + rect_size, y + rect_size), fill=color.hex
-            )
+            draw.rectangle((x, y, x + rect_size, y + rect_size), fill=color.hex)
         img.save(dest_path)
 
 
@@ -906,7 +893,6 @@ def display_palette(path: Path) -> None:
 
 
 def palette_to_png(src_path: Path, dest_path: Path) -> None:
-    rect_size = 32
     palette = Palette.from_file(src_path)
     palette.to_png(dest_path)
 

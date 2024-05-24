@@ -51,7 +51,6 @@ parser_copy.add_argument(
 
 
 def main() -> None:
-
     args = parser.parse_args()
 
     if args.command == "display":
@@ -71,7 +70,6 @@ def main() -> None:
 
 
 def display_book(book_path: Path):
-
     print(book_path)
 
     book = Book.from_file(book_path)
@@ -194,8 +192,8 @@ class TextInfo:
     def bytes(self, byte_string) -> None:
         for replacement, placeholder in ITALICS.items():
             byte_string = byte_string.replace(placeholder, replacement.encode("ascii"))
-        assert b"\xF2" not in byte_string
-        assert b"\xF3" not in byte_string
+        assert b"\xf2" not in byte_string
+        assert b"\xf3" not in byte_string
         self.text = byte_string.decode("ascii")
 
     def write(self, buf: FileBuffer) -> None:
@@ -238,9 +236,9 @@ class PageData:
             + 2  # num_first_letters
             + 2  # show_number
             + 30  # skip
-            + sum(d.size for d in self.decorations)  # decorations
-            + sum(l.size for l in self.first_letters)  # first_letters
-            + sum(t.size for t in self.text_blocks)  # text_blocks
+            + sum(decoration.size for decoration in self.decorations)  # decorations
+            + sum(letter.size for letter in self.first_letters)  # first_letters
+            + sum(text.size for text in self.text_blocks)  # text_blocks
             + 1  # end of page
         )
 
@@ -310,7 +308,7 @@ class PageData:
         bytes_buf = BytesIO()
 
         char = buf.read(1)
-        while char not in (b"\xF1", b"\xF0"):
+        while char not in (b"\xf1", b"\xf0"):
             bytes_buf.write(char)
             char = buf.read(1)
 
@@ -357,7 +355,6 @@ class PageData:
 
 @dataclass
 class Book:
-
     pages: list[PageData]
 
     @classmethod

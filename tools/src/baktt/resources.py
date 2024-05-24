@@ -70,7 +70,6 @@ RESOURCE_LIST_NAME = "_resources.csv"
 
 
 def main():
-
     args = parser.parse_args()
 
     if args.command == "list":
@@ -99,7 +98,6 @@ def list_resources(resource_map_path: Path):
 
 
 def extract_resources(resource_map_path: Path, extract_to: Path):
-
     extract_to.mkdir(parents=True, exist_ok=True)
     resource_list_path = extract_to / RESOURCE_LIST_NAME
     resource_map_name = resource_map_path.name
@@ -120,7 +118,6 @@ def extract_resources(resource_map_path: Path, extract_to: Path):
 
 
 def archive_resources(resource_list_path: Path, save_to: Path):
-
     if not resource_list_path.exists():
         raise ValueError(f"{resource_list_path} does not exist")
 
@@ -182,7 +179,6 @@ def archive_modified_resources(
 
 @dataclass
 class Resource:
-
     hashkey: int
     name: str
     data: bytes
@@ -192,7 +188,6 @@ class Resource:
 
 
 def _load_resources(resource_map_path: Path) -> tuple[str, Iterable[Resource]]:
-
     rmf = FileBuffer.from_file(resource_map_path)
     if rmf.uint32LE() != 1 or rmf.uint16LE() != 4:
         raise ValueError("Data corruption")

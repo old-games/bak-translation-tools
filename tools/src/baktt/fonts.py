@@ -20,7 +20,6 @@ parser_copy.add_argument("dest", metavar="DEST", help="Path to .FNT file", type=
 
 
 def main() -> None:
-
     args = parser.parse_args()
 
     if args.command == "display":
@@ -34,7 +33,6 @@ def main() -> None:
 
 
 def display_font(font_path: Path) -> None:
-
     font = Font.from_file(font_path)
 
     print(f"Name:\t{font.name}")
@@ -63,7 +61,6 @@ def copy_font(src: Path, dest: Path) -> None:
 
 @dataclass
 class Glyph:
-
     width: int
     rows: list[int]
 
@@ -110,7 +107,6 @@ SMILING_FACE = Glyph.from_pixels(
 
 @dataclass
 class Font:
-
     name: str
     height: int
     first: int
