@@ -1,22 +1,19 @@
-[build-system]
-requires = ["setuptools>=61.0.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
+[tool.poetry]
 name = "bak-translation-tools"
-requires-python = ">=3.9"
 version = "0.1.0"
-classifiers = [
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Development Status :: 3 - Alpha",
-    "Programming Language :: Python :: 3",
-    "Typing :: Typed",
-]
 description = ""
-dependencies = [
-    "bitstring==3.1.9",
-    "Pillow==9.2.0",
+authors = ["Andrey Fedoseev <andrey@andreyfedoseev.com>"]
+readme = "../README.md"
+packages = [
+    { include = "baktt", from = "src" },
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.poetry.dependencies]
+python = "^3.10"
+bitstring = "^3.1.9"
+Pillow = "^9.2.0"
+filebuffer = { path = "./lib/filebuffer" }
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

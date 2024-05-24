@@ -92,7 +92,9 @@ def main():
 
 
 def list_resources(resource_map_path: Path):
-    for resource in _load_resources(resource_map_path):
+    archive_name, resources = _load_resources(resource_map_path)
+    print("Archive:", archive_name)
+    for resource in resources:
         print(resource)
 
 
