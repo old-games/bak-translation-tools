@@ -1,5 +1,4 @@
 #!/bin/env python3
-import argparse
 import csv
 import os
 import shutil
@@ -8,86 +7,44 @@ from pathlib import Path
 from tempfile import mkdtemp
 from typing import Iterable
 
+from cyclopts import App
 from filebuffer import FileBuffer
 
-parser = argparse.ArgumentParser(description="Operations on the resource archive")
-subparsers = parser.add_subparsers(dest="command", required=True)
-
-parser_list = subparsers.add_parser(
-    "list", help="List resources in the specified resource map file"
-)
-parser_list.add_argument(
-    "resource_map_path", metavar="RESOURCE_MAP", help="Path to krondor.rmf", type=Path
-)
-
-parser_extract = subparsers.add_parser(
-    "extract", help="Extract resources based on the specified resource map file"
-)
-parser_extract.add_argument(
-    "resource_map_path", metavar="RESOURCE_MAP", help="Path to krondor.rmf", type=Path
-)
-parser_extract.add_argument(
-    "extract_to", metavar="EXTRACT_TO", help="Where to extract the resources", type=Path
-)
-
-
-parser_archive = subparsers.add_parser(
-    "archive", help="Archive resources listed in the specified resources list file."
-)
-parser_archive.add_argument(
-    "resource_list_path",
-    metavar="RESOURCE_LIST",
-    help="Path to _resources.csv",
-    type=Path,
-)
-parser_archive.add_argument(
-    "save_to", metavar="SAVE_TO", help="Where to save the archive", type=Path
-)
-
-
-parser_archive_modified = subparsers.add_parser(
-    "archive-modified", help="Archive the modified resources"
-)
-parser_archive_modified.add_argument(
-    "resource_map_path",
-    metavar="RESOURCE_MAP",
-    help="Path to original krondor.rmf",
-    type=Path,
-)
-parser_archive_modified.add_argument(
-    "modified_dir",
-    metavar="MODIFIED_DIR",
-    help="Location of the modified files",
-    type=Path,
-)
-parser_archive_modified.add_argument(
-    "save_to", metavar="SAVE_TO", help="Where to save the archive", type=Path
-)
+app = App(name="resources", help="Operations on the resource archive")
 
 
 RES_FILENAME_LEN = 13
 RESOURCE_LIST_NAME = "_resources.csv"
 
 
-def main():
-    args = parser.parse_args()
+def main() -> None:
+    app()
 
-    if args.command == "list":
-        list_resources(args.resource_map_path)
 
-    elif args.command == "extract":
-        extract_resources(args.resource_map_path, args.extract_to)
+@app.command(name="list")
+def list_command(resource_map_path: Path) -> None:
+    """List resources in the specified resource map file."""
+    list_resources(resource_map_path)
 
-    elif args.command == "archive":
-        archive_resources(args.resource_list_path, args.save_to)
 
-    elif args.command == "archive-modified":
-        archive_modified_resources(
-            args.resource_map_path, args.modified_dir, args.save_to
-        )
+@app.command(name="extract")
+def extract_command(resource_map_path: Path, extract_to: Path) -> None:
+    """Extract resources based on the specified resource map file."""
+    extract_resources(resource_map_path, extract_to)
 
-    else:
-        raise AssertionError()
+
+@app.command(name="archive")
+def archive_command(resource_list_path: Path, save_to: Path) -> None:
+    """Archive resources listed in the specified resources list file."""
+    archive_resources(resource_list_path, save_to)
+
+
+@app.command(name="archive-modified")
+def archive_modified_command(
+    resource_map_path: Path, modified_dir: Path, save_to: Path
+) -> None:
+    """Archive the modified resources."""
+    archive_modified_resources(resource_map_path, modified_dir, save_to)
 
 
 def list_resources(resource_map_path: Path):

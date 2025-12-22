@@ -1,72 +1,44 @@
-import argparse
 import os
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
 from typing import Iterable
 
+from cyclopts import App
 from filebuffer import FileBuffer
 
 from baktt.csvtools import Section, load_sections, save_sections
 from baktt.encoding import encode
 
-parser = argparse.ArgumentParser(description="Operations on the book files")
-subparsers = parser.add_subparsers(dest="command", required=True)
-
-parser_display = subparsers.add_parser("display", help="Display the book")
-parser_display.add_argument(
-    "book_path", metavar="BOOK_PATH", help="Path to .BOK file", type=Path
-)
-
-parser_copy = subparsers.add_parser("copy")
-parser_copy.add_argument("src", metavar="SRC", help="Path to .BOK file", type=Path)
-parser_copy.add_argument("dest", metavar="DEST", help="Path to .BOK file", type=Path)
-
-
-parser_copy = subparsers.add_parser("export")
-parser_copy.add_argument(
-    "bok_dir", metavar="BOK_DIR", help="Path to the folder with .BOK files", type=Path
-)
-parser_copy.add_argument(
-    "csv_path", metavar="CSV_PATH", help="Path to CSV file", type=Path
-)
-
-
-parser_copy = subparsers.add_parser("import")
-parser_copy.add_argument(
-    "bok_dir",
-    metavar="BOK_DIR",
-    help="Path to the folder with original .BOK files",
-    type=Path,
-)
-parser_copy.add_argument(
-    "imported_dir",
-    metavar="IMPORTED_DIR",
-    help="Path to the folder with modified .BOK files",
-    type=Path,
-)
-parser_copy.add_argument(
-    "csv_path", metavar="CSV_PATH", help="Path to CSV file", type=Path
-)
+app = App(name="book", help="Operations on the book files")
 
 
 def main() -> None:
-    args = parser.parse_args()
+    app()
 
-    if args.command == "display":
-        display_book(args.book_path)
 
-    elif args.command == "copy":
-        copy_book(args.src, args.dest)
+@app.command(name="display")
+def display_command(book_path: Path) -> None:
+    """Display the book."""
+    display_book(book_path)
 
-    elif args.command == "export":
-        export_csv(args.bok_dir, args.csv_path)
 
-    elif args.command == "import":
-        import_csv(args.bok_dir, args.imported_dir, args.csv_path)
+@app.command(name="copy")
+def copy_command(src: Path, dest: Path) -> None:
+    """Copy a book file."""
+    copy_book(src, dest)
 
-    else:
-        raise AssertionError()
+
+@app.command(name="export")
+def export_command(bok_dir: Path, csv_path: Path) -> None:
+    """Export book text into a CSV file."""
+    export_csv(bok_dir, csv_path)
+
+
+@app.command(name="import")
+def import_command(bok_dir: Path, imported_dir: Path, csv_path: Path) -> None:
+    """Import book text from a CSV file into book files."""
+    import_csv(bok_dir, imported_dir, csv_path)
 
 
 def display_book(book_path: Path):

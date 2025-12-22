@@ -1,35 +1,28 @@
 #!/bin/env python3
-import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
 import bitstring
+from cyclopts import App
 from filebuffer import FileBuffer
 
-parser = argparse.ArgumentParser(description="Operations on the font files")
-subparsers = parser.add_subparsers(dest="command", required=True)
-
-parser_display = subparsers.add_parser("display", help="Display the font")
-parser_display.add_argument(
-    "font_path", metavar="FONT_PATH", help="Path to .FNT file", type=Path
-)
-
-parser_copy = subparsers.add_parser("copy")
-parser_copy.add_argument("src", metavar="SRC", help="Path to .FNT file", type=Path)
-parser_copy.add_argument("dest", metavar="DEST", help="Path to .FNT file", type=Path)
+app = App(name="fonts", help="Operations on the font files")
 
 
 def main() -> None:
-    args = parser.parse_args()
+    app()
 
-    if args.command == "display":
-        display_font(args.font_path)
 
-    elif args.command == "copy":
-        copy_font(args.src, args.dest)
+@app.command(name="display")
+def display_command(font_path: Path) -> None:
+    """Display the font."""
+    display_font(font_path)
 
-    else:
-        raise AssertionError()
+
+@app.command(name="copy")
+def copy_command(src: Path, dest: Path) -> None:
+    """Copy a font file."""
+    copy_font(src, dest)
 
 
 def display_font(font_path: Path) -> None:

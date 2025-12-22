@@ -6,9 +6,13 @@ authors = [{ name = "Andrey Fedoseev", email = "andrey@andreyfedoseev.com" }]
 requires-python = ">=3.14"
 dependencies = [
     "bitstring>=3.1.9",
+    "cyclopts>=2.0.0",
     "Pillow>=9.2.0",
     "filebuffer",
 ]
+
+[project.scripts]
+baktt = "baktt.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

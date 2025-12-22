@@ -1,148 +1,61 @@
 import os
 from dataclasses import dataclass
-import argparse
 from pathlib import Path
 from typing import NamedTuple, Optional, ClassVar
 
+from cyclopts import App
 from PIL import Image as PILImage
 from PIL import ImageDraw
 
 from filebuffer import FileBuffer
 
+app = App(name="images", help="Operations on the image files")
+
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Operations on the font files")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    app()
 
-    parser_copy_bmx = subparsers.add_parser("copy_bmx", help="Copy a BMX file")
-    parser_copy_bmx.add_argument(
-        "src_path",
-        metavar="BMX_PATH",
-        help="Path to source .BMX file",
-        type=Path,
-    )
-    parser_copy_bmx.add_argument(
-        "dest_path",
-        metavar="BMX_PATH",
-        help="Path to dest .BMX file",
-        type=Path,
-    )
 
-    parser_display_palette = subparsers.add_parser(
-        "display_palette", help="Display a palette"
-    )
-    parser_display_palette.add_argument(
-        "src_path",
-        metavar="PAL_PATH",
-        help="Path to source .PAL file",
-        type=Path,
-    )
+@app.command(name="copy_bmx")
+def copy_bmx_command(src_path: Path, dest_path: Path) -> None:
+    """Copy a BMX file."""
+    copy_bmx_resource(src_path, dest_path)
 
-    parser_palette_to_png = subparsers.add_parser(
-        "palette_to_png", help="Save a palette to a PNG file"
-    )
-    parser_palette_to_png.add_argument(
-        "src_path",
-        metavar="PAL_PATH",
-        help="Path to source .PAL file",
-        type=Path,
-    )
-    parser_palette_to_png.add_argument(
-        "dest_path",
-        metavar="PNG_PATH",
-        help="Path to dest PNG file",
-        type=Path,
-    )
 
-    parser_scx_to_png = subparsers.add_parser(
-        "scx_to_png", help="Save SCX to a PNG file"
-    )
-    parser_scx_to_png.add_argument(
-        "scx_path",
-        metavar="SCX_PATH",
-        help="Path to source .SCX file",
-        type=Path,
-    )
-    parser_scx_to_png.add_argument(
-        "dest_path",
-        metavar="DEST_DIR",
-        help="Path to directory with PNG files",
-        type=Path,
-    )
+@app.command(name="display_palette")
+def display_palette_command(src_path: Path) -> None:
+    """Display a palette."""
+    display_palette(src_path)
 
-    parser_all_scx_to_png = subparsers.add_parser(
-        "all_scx_to_png", help="Convert all SCX in a dir to a PNG files"
-    )
-    parser_all_scx_to_png.add_argument(
-        "src_dir",
-        metavar="SRC_DIR",
-        help="Path to source directory with SXC and PAL files",
-        type=Path,
-    )
-    parser_all_scx_to_png.add_argument(
-        "dest_dir",
-        metavar="DEST_DIR",
-        help="Path to directory with PNG files",
-        type=Path,
-    )
 
-    parser_bmx_to_png = subparsers.add_parser(
-        "bmx_to_png", help="Save SCX to a PNG file"
-    )
-    parser_bmx_to_png.add_argument(
-        "bmx_path",
-        metavar="BMX_PATH",
-        help="Path to source .BMX file",
-        type=Path,
-    )
-    parser_bmx_to_png.add_argument(
-        "dest_dir",
-        metavar="DEST_DIR",
-        help="Path to directory with PNG files",
-        type=Path,
-    )
+@app.command(name="palette_to_png")
+def palette_to_png_command(src_path: Path, dest_path: Path) -> None:
+    """Save a palette to a PNG file."""
+    palette_to_png(src_path, dest_path)
 
-    parser_all_bmx_to_png = subparsers.add_parser(
-        "all_bmx_to_png", help="Convert all BMX in a dir to a PNG files"
-    )
-    parser_all_bmx_to_png.add_argument(
-        "src_dir",
-        metavar="SRC_DIR",
-        help="Path to source directory with SXC and PAL files",
-        type=Path,
-    )
-    parser_all_bmx_to_png.add_argument(
-        "dest_dir",
-        metavar="DEST_DIR",
-        help="Path to directory with PNG files",
-        type=Path,
-    )
 
-    args = parser.parse_args()
+@app.command(name="scx_to_png")
+def scx_to_png_command(scx_path: Path, dest_dir: Path) -> None:
+    """Save SCX to a PNG file."""
+    scx_to_png(scx_path, dest_dir)
 
-    if args.command == "copy_bmx":
-        copy_bmx_resource(args.src_path, args.dest_path)
 
-    elif args.command == "display_palette":
-        display_palette(args.src_path)
+@app.command(name="all_scx_to_png")
+def all_scx_to_png_command(src_dir: Path, dest_dir: Path) -> None:
+    """Convert all SCX in a dir to PNG files."""
+    all_scx_to_png(src_dir, dest_dir)
 
-    elif args.command == "palette_to_png":
-        palette_to_png(args.src_path, args.dest_path)
 
-    elif args.command == "scx_to_png":
-        scx_to_png(args.scx_path, args.dest_dir)
+@app.command(name="bmx_to_png")
+def bmx_to_png_command(bmx_path: Path, dest_dir: Path) -> None:
+    """Save BMX to a PNG file."""
+    bmx_to_png(bmx_path, dest_dir, guess_palette=True)
 
-    elif args.command == "all_scx_to_png":
-        all_scx_to_png(args.src_dir, args.dest_dir)
 
-    elif args.command == "bmx_to_png":
-        bmx_to_png(args.bmx_path, args.dest_dir, guess_palette=True)
-
-    elif args.command == "all_bmx_to_png":
-        all_bmx_to_png(args.src_dir, args.dest_dir)
-
-    else:
-        raise AssertionError(f"Unknown command '{args.command}'")
+@app.command(name="all_bmx_to_png")
+def all_bmx_to_png_command(src_dir: Path, dest_dir: Path) -> None:
+    """Convert all BMX in a dir to PNG files."""
+    all_bmx_to_png(src_dir, dest_dir)
 
 
 @dataclass

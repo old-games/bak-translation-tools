@@ -1,5 +1,4 @@
 # /bin/env python3
-import argparse
 import functools
 import logging
 import tkinter as tk
@@ -12,6 +11,7 @@ from tkinter.ttk import LabelFrame
 from typing import Optional
 
 import bitstring
+from cyclopts import App
 
 from baktt.encoding import INVERSE_TRANSLITERATION_TABLE
 from baktt.fonts import Font, Glyph
@@ -424,32 +424,20 @@ def start_gui(font_path: Optional[Path] = None):
     app.mainloop()
 
 
-parser = argparse.ArgumentParser(description="Font editor")
-parser.add_argument(
-    dest="font_path",
-    metavar="FNT",
-    help="Path to .FNT file",
-    type=Path,
-    default=None,
-    nargs="?",
-)
-parser.add_argument(
-    "--debug",
-    dest="debug",
-    help="Enable debug output",
-    action="store_true",
-    required=False,
-    default=False,
-)
+app = App(name="font-editor", help="Font editor")
 
 
 def main() -> None:
-    args = parser.parse_args()
+    app()
 
+
+@app.default
+def start(font_path: Optional[Path] = None, *, debug: bool = False) -> None:
+    """Start the font editor."""
     logging.basicConfig()
-    logger.setLevel(logging.DEBUG if args.debug else logging.ERROR)
+    logger.setLevel(logging.DEBUG if debug else logging.ERROR)
 
-    start_gui(font_path=args.font_path)
+    start_gui(font_path=font_path)
 
 
 if __name__ == "__main__":

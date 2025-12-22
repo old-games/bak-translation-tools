@@ -5,18 +5,18 @@ venv:
 
 
 extract:
-	./tools/.venv/bin/python -m baktt.resources extract ./data/original/krondor.rmf ./data/extracted/
+	uv run baktt resources extract ./data/original/krondor.rmf ./data/extracted/
 
 .PHONY : extract
 
 
 archive-modified:
-	./tools/.venv/bin/python -m baktt.resources archive-modified ./data/original/krondor.rmf ./data/modified/ ./data/archived/
+	uv run baktt resources archive-modified ./data/original/krondor.rmf ./data/modified/ ./data/archived/
 
 .PHONY : archive-modified
 
 import-book:
-	./tools/.venv/bin/python -m baktt.book import ./data/extracted ./data/modified ./data/BOK.csv
+	uv run baktt book import ./data/extracted ./data/modified ./data/BOK.csv
 
 .PHONY : import-book
 

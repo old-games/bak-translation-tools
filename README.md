@@ -7,7 +7,7 @@ of the Betrayal at Krondor video game to enable translation of the game to
 different languages (it was created to make a Russian translation, but may
 be used for other languages).
 
-The project is not affiliated with the original authors of Betrayal at Krondor, not
+The project is not affiliated with the original authors of Betrayal at Krondor, nor
 the developers of the `xbak` port.
 
 ## Requirements
@@ -31,16 +31,16 @@ the developers of the `xbak` port.
 
 Run these from the `tools` directory.
 
-* `uv run python -m baktt.resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
-* `uv run python -m baktt.fonts` - Operations on the font files (.FNT)
-* `uv run python -m baktt.book` - Operations on the book files (.BOK)
-* `uv run python -m baktt.images` - Operations on the image files (.PAL, .SCX, .BMX)
+* `uv run baktt resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
+* `uv run baktt fonts` - Operations on the font files (.FNT)
+* `uv run baktt book` - Operations on the book files (.BOK)
+* `uv run baktt images` - Operations on the image files (.PAL, .SCX, .BMX)
 
 Use `--help` flag to see the available options.
 
 ## The Font Editor
 
-Run the font editor with `uv run python -m baktt.gui.font_editor`
+Run the font editor with `uv run baktt gui font-editor`
 
 ## Building the Font Editor for Windows
 
