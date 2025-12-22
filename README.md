@@ -1,6 +1,6 @@
 # Betrayal at Krondor Translation Tools
 
-**Development moved to https://github.com/old-games/bak-translation-tools**
+**Development moved to <https://github.com/old-games/bak-translation-tools>**
 
 This project is a set of tools for manipulating the resources
 of the Betrayal at Krondor video game to enable translation of the game to
@@ -12,14 +12,13 @@ the developers of the `xbak` port.
 
 ## Requirements
 
- * Python 3.14 or later
- * `uv` for dependency management (see https://github.com/astral-sh/uv)
- * Tcl/Tk for GUI tools (Font Editor) - on Windows it is bundled with Python
-   * On MacOS you may need to install it with `brew install tcl-tk` and `brew install python-tk`
- * C++ compiler for building Python C extensions (on Windows you can install
+* Python 3.14 or later
+* `uv` for dependency management (see <https://github.com/astral-sh/uv>)
+* Tcl/Tk for GUI tools (Font Editor) - on Windows it is bundled with Python
+  * On MacOS you may need to install it with `brew install tcl-tk` and `brew install python-tk`
+* C++ compiler for building Python C extensions (on Windows you can install
    Visual Studio with Python support enabled, including the "Python native
    development tools" component)
-
 
 ## Installation
 
@@ -32,10 +31,10 @@ the developers of the `xbak` port.
 
 Run these from the `tools` directory.
 
- - `uv run python -m baktt.resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
- - `uv run python -m baktt.fonts` - Operations on the font files (.FNT)
- - `uv run python -m baktt.book` - Operations on the book files (.BOK)
- - `uv run python -m baktt.images` - Operations on the image files (.PAL, .SCX, .BMX)
+* `uv run python -m baktt.resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
+* `uv run python -m baktt.fonts` - Operations on the font files (.FNT)
+* `uv run python -m baktt.book` - Operations on the book files (.BOK)
+* `uv run python -m baktt.images` - Operations on the image files (.PAL, .SCX, .BMX)
 
 Use `--help` flag to see the available options.
 
@@ -52,25 +51,25 @@ Run the font editor with `uv run python -m baktt.gui.font_editor`
 
 ## TODO/Status
 
- - [x] Extract/archive resource files
- - [ ] Font editor
-   - [x] Compress Fonts
-   - [x] GUI
-     - [x] Basic Window
-     - [x] Character Table
-     - [x] Display Glyph
-     - [x] Editor Area
-     - [x] Save files
-     - [ ] Font Demo Widget
- - [ ] Translatable text extractor / packer
-   - [x] BOK-files (books)
-     - [x] Extract text
-     - [x] Pack text
-   - [ ] DDX-files (dialogs)
-     - [ ] Extract text
-     - [ ] Pack text
- - [ ] Image Processing
-   - [x] Extract images
-     - [x] SCX
-     - [x] BMX
-   - [ ] Pack images
+* [x] Extract/archive resource files
+* [ ] Font editor
+  * [x] Compress Fonts
+  * [x] GUI
+    * [x] Basic Window
+    * [x] Character Table
+    * [x] Display Glyph
+    * [x] Editor Area
+    * [x] Save files
+    * [ ] Font Demo Widget
+* [ ] Translatable text extractor / packer
+  * [x] BOK-files (books)
+    * [x] Extract text
+    * [x] Pack text
+  * [ ] DDX-files (dialogs)
+    * [ ] Extract text
+    * [ ] Pack text
+* [ ] Image Processing
+  * [x] Extract images
+    * [x] SCX
+    * [x] BMX
+  * [ ] Pack images
