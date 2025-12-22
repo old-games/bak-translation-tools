@@ -1,22 +1,22 @@
 venv:
-	python3 -m virtualenv ./tools/venv
+	uv venv --python 3.14 ./tools/.venv
 
 .PHONY : venv
 
 
 extract:
-	./tools/venv/bin/python3 -m baktt.resources extract ./data/original/krondor.rmf ./data/extracted/
+	./tools/.venv/bin/python -m baktt.resources extract ./data/original/krondor.rmf ./data/extracted/
 
 .PHONY : extract
 
 
 archive-modified:
-	./tools/venv/bin/python3 -m baktt.resources archive-modified ./data/original/krondor.rmf ./data/modified/ ./data/archived/
+	./tools/.venv/bin/python -m baktt.resources archive-modified ./data/original/krondor.rmf ./data/modified/ ./data/archived/
 
 .PHONY : archive-modified
 
 import-book:
-	./tools/venv/bin/python3 -m baktt.book import ./data/extracted ./data/modified ./data/BOK.csv
+	./tools/.venv/bin/python -m baktt.book import ./data/extracted ./data/modified ./data/BOK.csv
 
 .PHONY : import-book
 

@@ -12,8 +12,8 @@ the developers of the `xbak` port.
 
 ## Requirements
 
- * Python 3.10 or later
- * `poetry` for dependency management (see https://python-poetry.org/docs/)
+ * Python 3.14 or later
+ * `uv` for dependency management (see https://github.com/astral-sh/uv)
  * Tcl/Tk for GUI tools (Font Editor) - on Windows it is bundled with Python
    * On MacOS you may need to install it with `brew install tcl-tk` and `brew install python-tk`
  * C++ compiler for building Python C extensions (on Windows you can install
@@ -23,26 +23,31 @@ the developers of the `xbak` port.
 
 ## Installation
 
-1. Run `poetry install` to install the dependencies.
+1. `cd tools`
+2. Create a virtual environment: `uv venv --python 3.14`
+3. Install dependencies: `uv pip install -e . --python .venv/bin/python`
+   * On Windows use `--python .venv\Scripts\python.exe`
 
 ## Command Line Tools
 
- - `poetry python -m baktt.resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
- - `poetry python -m baktt.fonts` - Operations on the font files (.FNT)
- - `poetry python -m baktt.book` - Operations on the book files (.BOK)
- - `poetry python -m baktt.images` - Operations on the image files (.PAL, .SCX, .BMX)
+Run these from the `tools` directory.
+
+ - `uv run python -m baktt.resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
+ - `uv run python -m baktt.fonts` - Operations on the font files (.FNT)
+ - `uv run python -m baktt.book` - Operations on the book files (.BOK)
+ - `uv run python -m baktt.images` - Operations on the image files (.PAL, .SCX, .BMX)
 
 Use `--help` flag to see the available options.
 
 ## The Font Editor
 
-Run the font editor with `poetry python -m baktt.gui.font_editor`
+Run the font editor with `uv run python -m baktt.gui.font_editor`
 
 ## Building the Font Editor for Windows
 
 1. Make sure you have all requirements installed and have the project set up (see above).
-2. Install `PyInstaller`: `poetry run python -m pip install PyInstaller`
-3. Build the executable file: `poetry run python -m PyInstaller --noconsole --onefile .\tools\src\baktt\gui\font_editor.py`
+2. Install `PyInstaller`: `uv pip install PyInstaller --python .venv\Scripts\python.exe`
+3. Build the executable file: `uv run python -m PyInstaller --noconsole --onefile .\src\baktt\gui\font_editor.py`
 4. The `.exe` file is saved to `dist` folder.
 
 ## TODO/Status
