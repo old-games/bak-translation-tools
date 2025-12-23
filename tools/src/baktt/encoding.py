@@ -68,6 +68,22 @@ TRANSLITERATION_TABLE = {
     "щ": 0x5D,
     "ч": 0x5E,
     "ъ": 0x5F,
+    "Ю": 0x60,
+    "А": 0x61,
+    "Б": 0x62,
+    "Ц": 0x63,
+    "Д": 0x64,
+    "Е": 0x65,
+    "Ф": 0x66,
+    "Г": 0x67,
+    "Х": 0x68,
+    "И": 0x69,
+    "Й": 0x6A,
+    "К": 0x6B,
+    "Л": 0x6C,
+    "М": 0x6D,
+    "Н": 0x6E,
+    "О": 0x6F,
     "П": 0x70,
     "Я": 0x71,
     "Р": 0x72,
@@ -92,6 +108,14 @@ INVERSE_TRANSLITERATION_TABLE = {v: k for k, v in TRANSLITERATION_TABLE.items()}
 def encode(s: CyrillicText) -> ASCIIText:
     buf = StringIO()
     for char in s:
-        buf.write(chr(TRANSLITERATION_TABLE.get(char, ord(char))))
+        if char in TRANSLITERATION_TABLE:
+            encoded = chr(TRANSLITERATION_TABLE.get(char, ord(char)))
+        else:
+            if ord(char) > 127:
+                raise ValueError(
+                    f"Cannot encode character: {char!r}, code point {ord(char)}. Text: {s!r}"
+                )
+            encoded = char
+        buf.write(encoded)
     buf.seek(0)
     return buf.read()
