@@ -4,10 +4,9 @@ import zipfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import Optional
 
-from baktt.resources import extract_resources, archive_resources
 from baktt.book import import_csv
+from baktt.resources import archive_resources, extract_resources
 
 
 class Patcher(ABC):
@@ -101,7 +100,7 @@ PATCHERS: list[Patcher] = [
 ]
 
 
-def _find_case_insensitive_entry(parent: Path, name: str) -> Optional[Path]:
+def _find_case_insensitive_entry(parent: Path, name: str) -> Path | None:
     """Return a child path whose name matches `name` ignoring case."""
     if not parent.exists():
         return None
@@ -225,7 +224,7 @@ def patch_game(
         # Create output ZIP with full original structure
         print(f"Creating output ZIP: {output_zip}...")
         with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, dirs, files in os.walk(temp_extract):
+            for root, _dirs, files in os.walk(temp_extract):
                 for file in files:
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(temp_extract)

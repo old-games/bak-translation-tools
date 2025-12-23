@@ -1,13 +1,12 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Optional, ClassVar
+from typing import ClassVar, NamedTuple
 
 from cyclopts import App
+from filebuffer import FileBuffer
 from PIL import Image as PILImage
 from PIL import ImageDraw
-
-from filebuffer import FileBuffer
 
 app = App(name="images", help="Operations on the image files")
 
@@ -74,7 +73,7 @@ class Image:
     def size(self) -> int:
         return self.width * self.height
 
-    def to_png(self, path: Path, palette: "Palette") -> None:
+    def to_png(self, path: Path, palette: Palette) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         img = PILImage.new("RGB", (self.width, self.height))
         for x in range(self.width):
@@ -92,7 +91,7 @@ class Image:
         height: int,
         flags: int = 0,
         hires_locol: bool = False,
-    ) -> "Image":
+    ) -> Image:
         if flags & cls.FLAG_COMPRESSED:
             buf = buf.decompressRLE(width * height)
 
@@ -104,8 +103,8 @@ class Image:
         else:
             if hires_locol:
                 pixels = []
-                for y in range(height):
-                    for x in range(width // 2):
+                for _y in range(height):
+                    for _x in range(width // 2):
                         c = buf.uint8()
                         pixels.append((c & 0xF0) >> 4)
                         pixels.append(c & 0x0F)
@@ -129,7 +128,7 @@ class Image:
 @dataclass
 class BMXResource:
     # noinspection SpellCheckingInspection
-    PALETTES = {
+    PALETTES: ClassVar[dict[str, str]] = {
         "ACT001.BMX": "ACT001.PAL",
         "ACT001A.BMX": "ACT001.PAL",
         "ACT002.BMX": "ACT002.PAL",
@@ -603,7 +602,7 @@ class BMXResource:
         buf.to_file(path)
 
     @classmethod
-    def from_file(cls, path: Path) -> "BMXResource":
+    def from_file(cls, path: Path) -> BMXResource:
         buf = FileBuffer.from_file(path)
         if buf.uint16LE() != 0x1066:
             raise ValueError("Data corruption")
@@ -613,7 +612,7 @@ class BMXResource:
         uncompressed_size = buf.uint32LE()
 
         image_attrs = []
-        for i in range(num_images):
+        for _ in range(num_images):
             data_size = buf.uint16LE()
             flags = buf.uint16LE()
             width = buf.uint16LE()
@@ -659,7 +658,7 @@ class SCXResource:
     BOOK_SCREEN_HEIGHT = 350
 
     # noinspection SpellCheckingInspection
-    PALETTES = {
+    PALETTES: ClassVar[dict[str, str]] = {
         "BLANK.SCX": "CREDITS.PAL",
         "BOOK.SCX": "BOOK.PAL",
         "C11.SCX": "C11A.PAL",
@@ -700,7 +699,7 @@ class SCXResource:
     image: Image
 
     @classmethod
-    def from_file(cls, path: Path) -> "SCXResource":
+    def from_file(cls, path: Path) -> SCXResource:
         buf = FileBuffer.from_file(path)
         is_book_screen = False
         if buf.uint16LE() != 0x27B6:
@@ -745,10 +744,10 @@ class Palette:
     TAG_PAL = 0x3A4C4150
     TAG_VGA = 0x3A414756
 
-    _palettes_by_name: ClassVar[Optional[dict[str, "Palette"]]] = None
+    _palettes_by_name: ClassVar[dict[str, Palette] | None] = None
 
     @classmethod
-    def from_file(cls, path: Path) -> "Palette":
+    def from_file(cls, path: Path) -> Palette:
         buf = FileBuffer.from_file(path)
         if buf.uint32LE() != cls.TAG_PAL:
             raise ValueError("Data corruption")
@@ -769,7 +768,7 @@ class Palette:
         return palette
 
     @classmethod
-    def get_by_name(cls, src_dir: Path, name: str) -> "Palette":
+    def get_by_name(cls, src_dir: Path, name: str) -> Palette:
         if cls._palettes_by_name is None:
             cls._palettes_by_name = {}
             for filename in os.listdir(src_dir):
@@ -793,7 +792,7 @@ class Palette:
         img.save(dest_path)
 
 
-def copy_bmx_resource(src_path: Path, dest_path: Path):
+def copy_bmx_resource(src_path: Path, dest_path: Path) -> None:
     bmx_resource = BMXResource.from_file(src_path)
     print(bmx_resource)
     bmx_resource.to_file(dest_path)
@@ -813,8 +812,8 @@ def palette_to_png(src_path: Path, dest_path: Path) -> None:
 def scx_to_png(
     scx_path: Path,
     dest_dir: Path,
-    pal_name: Optional[str] = None,
-    png_name: Optional[str] = None,
+    pal_name: str | None = None,
+    png_name: str | None = None,
 ) -> None:
     scx_filename = scx_path.name
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -853,9 +852,9 @@ def all_scx_to_png(src_dir: Path, dest_dir: Path) -> None:
 def bmx_to_png(
     bmx_path: Path,
     dest_dir: Path,
-    pal_name: Optional[str] = None,
+    pal_name: str | None = None,
     guess_palette: bool = False,
-):
+) -> None:
     bmx_filename = bmx_path.name
     pal_name = pal_name or BMXResource.PALETTES.get(bmx_filename)
     if pal_name is None:

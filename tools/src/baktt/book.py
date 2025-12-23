@@ -1,8 +1,8 @@
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable
 
 from cyclopts import App
 from filebuffer import FileBuffer
@@ -41,7 +41,7 @@ def import_command(bok_dir: Path, imported_dir: Path, csv_path: Path) -> None:
     import_csv(bok_dir, imported_dir, csv_path)
 
 
-def display_book(book_path: Path):
+def display_book(book_path: Path) -> None:
     print(book_path)
 
     book = Book.from_file(book_path)
@@ -126,7 +126,7 @@ class ImageInfo:
         buf.put_uint16LE(self.flag)
 
     @classmethod
-    def from_buf(cls, buf: FileBuffer) -> "ImageInfo":
+    def from_buf(cls, buf: FileBuffer) -> ImageInfo:
         return ImageInfo(
             x_pos=buf.uint16LE(),
             y_pos=buf.uint16LE(),
@@ -161,7 +161,7 @@ class TextInfo:
         return byte_string
 
     @bytes.setter
-    def bytes(self, byte_string) -> None:
+    def bytes(self, byte_string: bytes) -> None:
         for replacement, placeholder in ITALICS.items():
             byte_string = byte_string.replace(placeholder, replacement.encode("ascii"))
         assert b"\xf2" not in byte_string
@@ -215,7 +215,7 @@ class PageData:
         )
 
     @classmethod
-    def from_buf(cls, buf: FileBuffer) -> "PageData":
+    def from_buf(cls, buf: FileBuffer) -> PageData:
         skips: list[bytes] = []
         x_pos = buf.uint16LE()
         y_pos = buf.uint16LE()
@@ -292,7 +292,7 @@ class PageData:
         paragraph.bytes = bytes_buf.read()
         return paragraph, ord(char)
 
-    def write(self, buf: FileBuffer, is_last: bool):
+    def write(self, buf: FileBuffer, is_last: bool) -> None:
         buf.put_uint16LE(self.x_pos)
         buf.put_uint16LE(self.y_pos)
         buf.put_uint16LE(self.width)
@@ -330,7 +330,7 @@ class Book:
     pages: list[PageData]
 
     @classmethod
-    def from_file(cls, path: Path) -> "Book":
+    def from_file(cls, path: Path) -> Book:
         buf = FileBuffer.from_file(path)
         _ = buf.uint32LE()  # file size
         num_pages = buf.uint16LE()

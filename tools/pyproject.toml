@@ -26,3 +26,28 @@ filebuffer = { path = "lib/filebuffer" }
 [build-system]
 requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+lint.select = [
+    "F",       # Pyflakes
+    "E",       # pycodestyle: Errors
+    "W",       # pycodestyle: Warnings
+    "I",       # isort
+    "YTT",     # flake-2020
+    "B",       # flake8-bugbear
+    "C4",      # flake8-comprehensions
+    "T10",     # flake8-debugger
+    "SIM",     # flake8-simplify
+    "ERA",     # eradicate
+    "RUF",     # Ruff-specific rules
+    "UP",      # pyupgrade
+    "G",       # flake8-logging-format
+    "PLC0415", # prevent local imports
+    "ASYNC",   # asyncio best practices
+    "ANN",     # type annotation issues
+]
+lint.ignore = [
+    "RUF001",  # ambiguous character names
+]
+line-length = 88
+target-version = "py314"

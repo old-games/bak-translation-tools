@@ -64,13 +64,13 @@ class Glyph:
         return pixels
 
     @classmethod
-    def from_pixels(cls, pixels: list[bitstring.BitArray]) -> "Glyph":
+    def from_pixels(cls, pixels: list[bitstring.BitArray]) -> Glyph:
         width = len(pixels[0])
         suffix = bitstring.BitArray(uint=0, length=16 - width)
         pixels = [row + suffix for row in pixels]
         return cls(width=width, rows=[row.uint for row in pixels])
 
-    def copy(self) -> "Glyph":
+    def copy(self) -> Glyph:
         return Glyph(
             width=self.width,
             rows=list(self.rows),
@@ -107,7 +107,7 @@ class Font:
     skips: list[bytes]
 
     @classmethod
-    def from_file(cls, path: Path) -> "Font":
+    def from_file(cls, path: Path) -> Font:
         buf = FileBuffer.from_file(path)
         tag = buf.uint32LE()
         if tag != 0x3A544E46:
@@ -140,7 +140,7 @@ class Font:
         glyph_data_start: int = glyphbuf.tell()
         glyphs: list[Glyph] = []
 
-        for offset, width in zip(glyph_offsets, glyph_widths):
+        for offset, width in zip(glyph_offsets, glyph_widths, strict=True):
             glyphbuf.seek(glyph_data_start + offset)
             rows = []
             for _ in range(height):

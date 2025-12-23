@@ -1,7 +1,7 @@
 from filebuffer import FileBuffer
 
 
-def test_rle():
+def test_rle() -> None:
     buf = FileBuffer(10)
     buf.write(b"aaaaa12345")
     buf.seek(0)

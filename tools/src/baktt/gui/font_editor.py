@@ -1,5 +1,4 @@
 # /bin/env python3
-import functools
 import logging
 import tkinter as tk
 from dataclasses import dataclass, field
@@ -8,7 +7,6 @@ from pathlib import Path
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 from tkinter.messagebox import askyesno
 from tkinter.ttk import LabelFrame
-from typing import Optional
 
 import bitstring
 from cyclopts import App
@@ -37,7 +35,7 @@ class DrawnGlyph:
         pixel_height: int,
         pixel_width: int,
         outline: str = "",
-    ):
+    ) -> None:
         self.pixel_height = pixel_height
         self.pixel_width = pixel_width
         self.outline = outline
@@ -68,22 +66,11 @@ class DrawnGlyph:
 logger = getLogger()
 
 
-def debug_log(wrapped):
-    @functools.wraps(wrapped)
-    def func(*args, **kwargs):
-        logger.debug(
-            "%s is called with args=%s kwargs=%s", wrapped.__name__, args[1:], kwargs
-        )
-        return wrapped(*args, **kwargs)
-
-    return func
-
-
 class Application(tk.Frame):
     CHARACTERS_PER_ROW = 12
     BASE_TITLE = "Betrayal at Krondor Font Editor"
 
-    def __init__(self, root: tk.Tk, font_path: Optional[Path] = None):
+    def __init__(self, root: tk.Tk, font_path: Path | None = None) -> None:
         self.label_frame_padding = scale(10)
         self.frame_padding = scale(5)
 
@@ -93,19 +80,19 @@ class Application(tk.Frame):
 
         self.grid()
         self.create_widgets()
-        self.font: Optional[Font] = None
+        self.font: Font | None = None
         self.characters: list[Character] = []
-        self._edited_character: Optional[Character] = None
+        self._edited_character: Character | None = None
         self.undo_stack: list[Glyph] = []
-        self._font_path: Optional[Path] = None
+        self._font_path: Path | None = None
         if font_path:
             self.open_font(font_path)
         else:
             self.open_font_dialog()
 
-        self.copied_glyph: Optional[Glyph] = None
+        self.copied_glyph: Glyph | None = None
 
-    def create_widgets(self):
+    def create_widgets(self) -> None:
         top = self.winfo_toplevel()
         self.menu_bar = tk.Menu(top)
         top["menu"] = self.menu_bar
@@ -177,24 +164,22 @@ class Application(tk.Frame):
         self.root.bind("<Control-v>", lambda _: self.paste_glyph())
 
     @property
-    def font_path(self) -> Optional[Path]:
+    def font_path(self) -> Path | None:
         return self._font_path
 
     @font_path.setter
-    def font_path(self, path: Optional[Path]) -> None:
+    def font_path(self, path: Path | None) -> None:
         self._font_path = path
         if path:
             self.root.title(f"{self.BASE_TITLE} - {path.name}")
         else:
             self.root.title(self.BASE_TITLE)
 
-    @debug_log
-    def quit(self):
+    def quit(self) -> None:
         if askyesno(message="Are you sure you want to quit?"):
             self.master.destroy()
 
-    @debug_log
-    def open_font(self, path: Path):
+    def open_font(self, path: Path) -> None:
         self.font = Font.from_file(path)
         self.font_path = path
         self.edited_character = None
@@ -208,8 +193,7 @@ class Application(tk.Frame):
         self.draw_available_characters()
         self.root.minsize(width=self.winfo_reqwidth(), height=self.winfo_reqheight())
 
-    @debug_log
-    def open_font_dialog(self):
+    def open_font_dialog(self) -> None:
         filename = askopenfilename(
             title="Open .FNT file", filetypes=(("FNT", "*.FNT"),)
         )
@@ -217,8 +201,7 @@ class Application(tk.Frame):
             return
         self.open_font(Path(filename))
 
-    @debug_log
-    def draw_available_characters(self):
+    def draw_available_characters(self) -> None:
         for child in self.available_characters_frame.winfo_children():
             child.destroy()
 
@@ -248,8 +231,7 @@ class Application(tk.Frame):
             )
             character.drawn_glyph = drawn_glyph
 
-    @debug_log
-    def open_character_in_editor(self, character: Optional["Character"]) -> None:
+    def open_character_in_editor(self, character: Character | None) -> None:
         assert self.font is not None
 
         if self.edited_character:
@@ -280,16 +262,13 @@ class Application(tk.Frame):
         drawn_glyph.canvas.bind("<Button 1>", self.editor_left_click)
         drawn_glyph.canvas.bind("<Button 3>", self.editor_right_click)
 
-    @debug_log
-    def editor_left_click(self, event):
+    def editor_left_click(self, event: tk.Event) -> None:
         self.edit_pixel(event.x, event.y, False)
 
-    @debug_log
-    def editor_right_click(self, event):
+    def editor_right_click(self, event: tk.Event) -> None:
         self.edit_pixel(event.x, event.y, True)
 
-    @debug_log
-    def edit_pixel(self, x, y, erase):
+    def edit_pixel(self, x: int, y: int, erase: bool) -> None:
         assert self.edited_character
         row_idx = y // scale(30)
         col_idx = x // scale(30)
@@ -307,18 +286,17 @@ class Application(tk.Frame):
         self.edited_character.redraw()
 
     @property
-    def edited_character(self) -> Optional["Character"]:
+    def edited_character(self) -> Character | None:
         return self._edited_character
 
     @edited_character.setter
-    def edited_character(self, c: Optional["Character"]) -> None:
+    def edited_character(self, c: Character | None) -> None:
         assert self.font
         self._edited_character = c
         self.undo_stack = []
         self.open_character_in_editor(c)
 
-    @debug_log
-    def set_character_width(self):
+    def set_character_width(self) -> None:
         assert self.edited_character is not None
         new_width = int(self.character_width_control_value.get())
         assert 1 <= new_width <= 16
@@ -342,32 +320,28 @@ class Application(tk.Frame):
         self.edited_character.glyph = glyph
         self.edited_character.redraw()
 
-    @debug_log
-    def undo(self):
+    def undo(self) -> None:
         if not self.undo_stack:
             return
         assert self.edited_character
         self.edited_character.glyph = self.undo_stack.pop()
         self.edited_character.redraw()
 
-    @debug_log
-    def save(self):
+    def save(self) -> None:
         if not self.font:
             return
         assert self.font_path
         self.font.glyphs = [c.glyph for c in self.characters]
         self.font.to_file(self.font_path)
 
-    @debug_log
-    def save_as_dialog(self):
+    def save_as_dialog(self) -> None:
         filename = asksaveasfilename(title="Save as", defaultextension="FNT")
         if not filename:
             return
         self.font_path = Path(filename)
         self.save()
 
-    @debug_log
-    def clear_editor(self):
+    def clear_editor(self) -> None:
         assert self.edited_character is not None
         assert self.font is not None
         self.undo_stack.append(self.edited_character.glyph)
@@ -376,14 +350,12 @@ class Application(tk.Frame):
         )
         self.edited_character.redraw()
 
-    @debug_log
-    def copy_glyph(self):
+    def copy_glyph(self) -> None:
         if self.edited_character is None:
             return
         self.copied_glyph = self.edited_character.glyph.copy()
 
-    @debug_log
-    def paste_glyph(self):
+    def paste_glyph(self) -> None:
         if self.edited_character is None:
             return
         if self.copied_glyph is None:
@@ -400,20 +372,20 @@ class Character:
     idx: int
     char: str
     glyph: Glyph
-    drawn_glyph: Optional[DrawnGlyph] = field(repr=False, default=None)
-    edited_drawn_glyph: Optional[DrawnGlyph] = field(repr=False, default=None)
+    drawn_glyph: DrawnGlyph | None = field(repr=False, default=None)
+    edited_drawn_glyph: DrawnGlyph | None = field(repr=False, default=None)
 
-    def open_in_editor(self):
+    def open_in_editor(self) -> None:
         self.app.edited_character = self
 
-    def redraw(self):
+    def redraw(self) -> None:
         if self.drawn_glyph:
             self.drawn_glyph.draw(self.glyph)
         if self.edited_drawn_glyph:
             self.edited_drawn_glyph.draw(self.glyph)
 
 
-def start_gui(font_path: Optional[Path] = None):
+def start_gui(font_path: Path | None = None) -> None:
     root = tk.Tk()
     root.resizable(width=False, height=False)
     root.option_add("*tearOff", tk.FALSE)
@@ -432,7 +404,7 @@ def main() -> None:
 
 
 @app.default
-def start(font_path: Optional[Path] = None, *, debug: bool = False) -> None:
+def start(font_path: Path | None = None, *, debug: bool = False) -> None:
     """Start the font editor."""
     logging.basicConfig()
     logger.setLevel(logging.DEBUG if debug else logging.ERROR)

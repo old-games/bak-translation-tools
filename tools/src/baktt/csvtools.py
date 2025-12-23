@@ -1,7 +1,6 @@
 import csv
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -10,7 +9,9 @@ class Section:
     strings: list[tuple[str, str]] = field(default_factory=list)
 
 
-def save_sections(csv_path: Path, sections: list[Section], append=False) -> None:
+def save_sections(
+    csv_path: Path, sections: list[Section], append: bool = False
+) -> None:
     with open(csv_path, "a" if append else "w") as f:
         writer = csv.writer(f)
         for section in sorted(sections, key=lambda s: s.name):
@@ -23,7 +24,7 @@ def load_sections(csv_path: Path) -> list[Section]:
 
     with open(csv_path) as f:
         reader = csv.reader(f)
-        section: Optional[Section] = None
+        section: Section | None = None
         for row in reader:
             if row[0].startswith("==="):
                 section_name = row[0][3:]

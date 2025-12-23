@@ -113,7 +113,8 @@ def encode(s: CyrillicText) -> ASCIIText:
         else:
             if ord(char) > 127:
                 raise ValueError(
-                    f"Cannot encode character: {char!r}, code point {ord(char)}. Text: {s!r}"
+                    f"Cannot encode character: {char!r}, code point {ord(char)}. "
+                    f"Text: {s!r}"
                 )
             encoded = char
         buf.write(encoded)

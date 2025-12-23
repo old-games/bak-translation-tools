@@ -1,13 +1,13 @@
 from pathlib import Path
-from typing import Optional
+
 import _filebuffer
 
 
 class FileBuffer:
-    def __init__(self, size: int):
+    def __init__(self, size: int) -> None:
         self._fb = _filebuffer.FileBuffer(size)
 
-    def size(self):
+    def size(self) -> int:
         return self._fb.GetSize()
 
     def uint8(self) -> int:
@@ -36,7 +36,7 @@ class FileBuffer:
         self.write(bytes(0 for _ in range(length - len(v))))
 
     @classmethod
-    def from_file(cls, path: Path) -> "FileBuffer":
+    def from_file(cls, path: Path) -> FileBuffer:
         bytes = path.read_bytes()
         fb = cls(len(bytes))
         for b in bytes:
@@ -53,7 +53,7 @@ class FileBuffer:
     def seek(self, offset: int) -> None:
         self._fb.Seek(offset)
 
-    def read(self, size: Optional[int] = None) -> bytes:
+    def read(self, size: int | None = None) -> bytes:
         if size is None:
             size = self._fb.GetBytesLeft()
         assert size is not None
@@ -72,12 +72,12 @@ class FileBuffer:
     def at_end(self) -> bool:
         return self._fb.AtEnd()
 
-    def decompressRLE(self, uncompressed_size: int) -> "FileBuffer":
+    def decompressRLE(self, uncompressed_size: int) -> FileBuffer:
         fb = FileBuffer(uncompressed_size)
         self._fb.DecompressRLE(fb._fb)
         return fb
 
-    def compressRLE(self) -> tuple[int, "FileBuffer"]:
+    def compressRLE(self) -> tuple[int, FileBuffer]:
         current = self.tell()
         self.seek(0)
         uncompressed_size = self.size()
@@ -89,12 +89,12 @@ class FileBuffer:
         fb.seek(0)
         return compressed_size, fb
 
-    def decompressLZW(self, uncompressed_size: int) -> "FileBuffer":
+    def decompressLZW(self, uncompressed_size: int) -> FileBuffer:
         fb = FileBuffer(uncompressed_size)
         self._fb.DecompressLZW(fb._fb)
         return fb
 
-    def decompressLZSS(self, uncompressed_size: int) -> "FileBuffer":
+    def decompressLZSS(self, uncompressed_size: int) -> FileBuffer:
         fb = FileBuffer(uncompressed_size)
         self._fb.DecompressLZSS(fb._fb)
         return fb

@@ -2,10 +2,10 @@
 import csv
 import os
 import shutil
+from collections.abc import Generator, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import Iterable
 
 from cyclopts import App
 from filebuffer import FileBuffer
@@ -47,14 +47,14 @@ def archive_modified_command(
     archive_modified_resources(resource_map_path, modified_dir, save_to)
 
 
-def list_resources(resource_map_path: Path):
+def list_resources(resource_map_path: Path) -> None:
     archive_name, resources = _load_resources(resource_map_path)
     print("Archive:", archive_name)
     for resource in resources:
         print(resource)
 
 
-def extract_resources(resource_map_path: Path, extract_to: Path):
+def extract_resources(resource_map_path: Path, extract_to: Path) -> None:
     extract_to.mkdir(parents=True, exist_ok=True)
     resource_list_path = extract_to / RESOURCE_LIST_NAME
     resource_map_name = resource_map_path.name
@@ -74,7 +74,7 @@ def extract_resources(resource_map_path: Path, extract_to: Path):
             resource_list_writer.writerow((resource.name, str(resource.hashkey)))
 
 
-def archive_resources(resource_list_path: Path, save_to: Path):
+def archive_resources(resource_list_path: Path, save_to: Path) -> None:
     if not resource_list_path.exists():
         raise ValueError(f"{resource_list_path} does not exist")
 
@@ -86,7 +86,7 @@ def archive_resources(resource_list_path: Path, save_to: Path):
     with open(resource_list_path) as resource_list_file:
         resource_list_reader = csv.reader(resource_list_file)
         next(resource_list_reader)
-        for resource_name, hashkey in resource_list_reader:
+        for resource_name, _hashkey in resource_list_reader:
             resource_path = resource_dir_path / resource_name
             if not resource_path.exists():
                 raise ValueError(f"{resource_path} does not exist")
@@ -140,7 +140,7 @@ class Resource:
     name: str
     data: bytes
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name}\t{len(self.data)} bytes"
 
 
@@ -158,7 +158,7 @@ def _load_resources(resource_map_path: Path) -> tuple[str, Iterable[Resource]]:
 
     rf = FileBuffer.from_file(resources_archive_path)
 
-    def iter_resources():
+    def iter_resources() -> Generator[Resource]:
         for _ in range(num_resources):
             hashkey = rmf.uint32LE()
             offset = rmf.uint32LE()
