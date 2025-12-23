@@ -1,5 +1,5 @@
 venv:
-	uv venv --python 3.14 ./tools/.venv
+	uv venv --python 3.14 ./.venv
 
 .PHONY : venv
 

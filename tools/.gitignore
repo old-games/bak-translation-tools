@@ -1,8 +1,0 @@
-venv
-.venv
-build
-dist
-__pycache__
-*.spec
-*.pyd
-.vs

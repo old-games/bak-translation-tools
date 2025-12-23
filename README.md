@@ -22,14 +22,11 @@ the developers of the `xbak` port.
 
 ## Installation
 
-1. `cd tools`
-2. Create a virtual environment: `uv venv --python 3.14`
-3. Install dependencies: `uv pip install -e . --python .venv/bin/python`
+1. Create a virtual environment: `uv venv --python 3.14`
+2. Install dependencies: `uv pip install -e . --python .venv/bin/python`
    * On Windows use `--python .venv\Scripts\python.exe`
 
 ## Command Line Tools
-
-Run these from the `tools` directory.
 
 * `uv run baktt resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
 * `uv run baktt fonts` - Operations on the font files (.FNT)
