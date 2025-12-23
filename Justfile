@@ -1,6 +1,6 @@
 # Create virtual environment
 venv:
-	uv venv --python 3.14 ./.venv
+	uv venv --python 3.13 ./.venv
 
 # Extract resources from krondor.rmf
 extract:

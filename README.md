@@ -12,7 +12,7 @@ the developers of the `xbak` port.
 
 ## Requirements
 
-* Python 3.14 or later
+* Python 3.13 or later
 * `uv` for dependency management (see <https://github.com/astral-sh/uv>)
 * `just` for running common tasks (see <https://github.com/casey/just>) (optional but recommended)
 * Tcl/Tk for GUI tools (Font Editor) - on Windows it is bundled with Python
@@ -23,7 +23,7 @@ the developers of the `xbak` port.
 
 ## Installation
 
-1. Create a virtual environment: `just venv` (or `uv venv --python 3.14`)
+1. Create a virtual environment: `just venv` (or `uv venv --python 3.13`)
 2. Install dependencies: `uv pip install -e . --python .venv/bin/python`
    * On Windows use `--python .venv\Scripts\python.exe`
 

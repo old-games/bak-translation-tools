@@ -1,4 +1,5 @@
-# /bin/env python3
+from __future__ import annotations
+
 import logging
 import tkinter as tk
 from dataclasses import dataclass, field
@@ -399,10 +400,6 @@ def start_gui(font_path: Path | None = None) -> None:
 app = App(name="font-editor", help="Font editor")
 
 
-def main() -> None:
-    app()
-
-
 @app.default
 def start(font_path: Path | None = None, *, debug: bool = False) -> None:
     """Start the font editor."""
@@ -410,7 +407,3 @@ def start(font_path: Path | None = None, *, debug: bool = False) -> None:
     logger.setLevel(logging.DEBUG if debug else logging.ERROR)
 
     start_gui(font_path=font_path)
-
-
-if __name__ == "__main__":
-    main()

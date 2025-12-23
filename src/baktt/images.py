@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,10 +11,6 @@ from PIL import Image as PILImage
 from PIL import ImageDraw
 
 app = App(name="images", help="Operations on the image files")
-
-
-def main() -> None:
-    app()
 
 
 @app.command(name="copy_bmx")
@@ -894,7 +892,3 @@ def all_bmx_to_png(src_dir: Path, dest_dir: Path) -> None:
             continue
         bmx_path = src_dir / filename
         bmx_to_png(bmx_path, dest_dir)
-
-
-if __name__ == "__main__":
-    main()

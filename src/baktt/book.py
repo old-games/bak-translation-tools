@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -11,10 +13,6 @@ from baktt.csvtools import Section, load_sections, save_sections
 from baktt.encoding import encode
 
 app = App(name="book", help="Operations on the book files")
-
-
-def main() -> None:
-    app()
 
 
 @app.command(name="display")
@@ -393,7 +391,3 @@ class Book:
             page.write(buf, is_last)
 
         buf.to_file(path)
-
-
-if __name__ == "__main__":
-    main()

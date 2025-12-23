@@ -3,7 +3,7 @@ name = "bak-translation-tools"
 version = "0.1.0"
 description = ""
 authors = [{ name = "Andrey Fedoseev", email = "andrey@andreyfedoseev.com" }]
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "bitstring>=3.1.9",
     "cyclopts>=2.0.0",
@@ -50,4 +50,4 @@ lint.ignore = [
     "RUF001",  # ambiguous character names
 ]
 line-length = 88
-target-version = "py314"
+target-version = "py313"

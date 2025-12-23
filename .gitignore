@@ -1,3 +1,4 @@
+.direnv
 /data
 !/data/README.md
 build

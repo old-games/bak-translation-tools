@@ -1,4 +1,5 @@
-#!/bin/env python3
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -7,10 +8,6 @@ from cyclopts import App
 from filebuffer import FileBuffer
 
 app = App(name="fonts", help="Operations on the font files")
-
-
-def main() -> None:
-    app()
 
 
 @app.command(name="display")
@@ -232,7 +229,3 @@ class Font:
         buf.write(glyphbuf_compressed.read())
 
         buf.to_file(path)
-
-
-if __name__ == "__main__":
-    main()

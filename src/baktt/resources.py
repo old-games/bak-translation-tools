@@ -1,4 +1,3 @@
-#!/bin/env python3
 import csv
 import os
 import shutil
@@ -15,10 +14,6 @@ app = App(name="resources", help="Operations on the resource archive")
 
 RES_FILENAME_LEN = 13
 RESOURCE_LIST_NAME = "_resources.csv"
-
-
-def main() -> None:
-    app()
 
 
 @app.command(name="list")
@@ -186,7 +181,3 @@ def _save_resource_to_archive(rf: FileBuffer, res: Resource) -> int:
     rf.put_uint32LE(len(res.data))
     rf.write(res.data)
     return offset
-
-
-if __name__ == "__main__":
-    main()
