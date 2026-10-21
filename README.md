@@ -32,7 +32,22 @@ the developers of the `xbak` port.
 * `uv run baktt resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
 * `uv run baktt fonts` - Operations on the font files (.FNT)
 * `uv run baktt book` - Operations on the book files (.BOK)
+* `uv run baktt dialog` - Operations on the dialog files (.DDX): export texts to CSV, build translated files
 * `uv run baktt images` - Operations on the image files (.PAL, .SCX, .BMX)
+* `uv run baktt exe` - Patch `KRONDOR.EXE` so that font characters 0x80+ can be used
+* `uv run baktt patch-game` - Create a translated game archive (see `data/README.md`)
+
+## Russian Text Encoding
+
+Cyrillic letters are stored at codes 0x80..0xC2 (see `src/baktt/encoding.py`),
+Latin letters are kept, so Roman page numbers in books still work. The original
+`KRONDOR.EXE` gives every character >= 0x80 zero width (word wrapping breaks),
+so the game must be patched with `baktt exe patch` (`patch-game` does it
+automatically). Supported version: 1.02.
+
+Fonts drawn with the previous scheme (Cyrillic over Latin glyphs) are converted
+with `baktt fonts migrate`, which takes Latin glyphs from the original English
+font and moves Cyrillic ones to 0x80+.
 
 Use `--help` flag to see the available options.
 
@@ -63,9 +78,12 @@ Run the font editor with `uv run baktt gui font-editor`
   * [x] BOK-files (books)
     * [x] Extract text
     * [x] Pack text
-  * [ ] DDX-files (dialogs)
-    * [ ] Extract text
-    * [ ] Pack text
+  * [x] DDX-files (dialogs)
+    * [x] Extract text
+    * [x] Pack text
+  * [ ] Other texts (KEYWORD.DAT, OBJINFO.DAT, SPELLS.DAT, REQ_*.DAT, ...)
+  * [ ] Strings in KRONDOR.EXE
+* [x] Characters 0x80+ in fonts (KRONDOR.EXE patch)
 * [ ] Image Processing
   * [x] Extract images
     * [x] SCX

@@ -1,6 +1,6 @@
 from cyclopts import App
 
-from baktt import book, fonts, images, resources
+from baktt import book, dialog, exe_patch, fonts, images, resources
 from baktt.patch import patch_game
 
 try:
@@ -13,7 +13,9 @@ app = App(name="baktt", help="Bak translation tools")
 app.command(resources.app)
 app.command(fonts.app)
 app.command(book.app)
+app.command(dialog.app)
 app.command(images.app)
+app.command(exe_patch.app)
 app.command(patch_game)
 
 if font_editor is not None:

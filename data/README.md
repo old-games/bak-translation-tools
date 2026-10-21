@@ -14,6 +14,16 @@ Book translations in CSV format with two columns (original text, translated text
 
 Used by: BookPatcher
 
+### `DDX.csv`
+
+Dialog translations exported with `baktt dialog export` (columns `key`,
+`english`, `russian`). Rows with an empty `russian` column keep the original
+text. Markup: `{F0}`..`{F4}` (style of the next word), `{E1}text{/E1}` (styled
+text, the byte is repeated before every character), `{XX}` (any other byte),
+`#Name#` at the start of a snippet is the speaker label.
+
+Used by: DialogPatcher
+
 ### `modified/`
 
 Folder containing modified game resource files:

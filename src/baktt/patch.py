@@ -6,6 +6,8 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 from baktt.book import import_csv
+from baktt.dialog import import_csv as import_dialog_csv
+from baktt.exe_patch import patch_exe
 from baktt.resources import archive_resources, extract_resources
 
 
@@ -42,6 +44,19 @@ class BookPatcher(Patcher):
         import_csv(extracted_dir, extracted_dir, data_dir / "BOK.csv")
         bok_files = list(extracted_dir.glob("*.BOK"))
         print(f"  ✓ Applied translations to {len(bok_files)} book files")
+
+
+class DialogPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Dialog Translations"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (data_dir / "DDX.csv").exists()
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying dialog translations from DDX.csv...")
+        import_dialog_csv(extracted_dir, extracted_dir, data_dir / "DDX.csv")
 
 
 class FontPatcher(Patcher):
@@ -95,6 +110,7 @@ class ImagePatcher(Patcher):
 # Register all patchers
 PATCHERS: list[Patcher] = [
     BookPatcher(),
+    DialogPatcher(),
     FontPatcher(),
     ImagePatcher(),
 ]
@@ -178,7 +194,15 @@ def patch_game(
         if rmf_path is None:
             raise ValueError("Invalid game ZIP: missing krondor.rmf in krondor/ folder")
 
+        exe_path = _find_case_insensitive_entry(krondor_dir, "krondor.exe")
+        if exe_path is None:
+            raise ValueError("Invalid game ZIP: missing krondor.exe in krondor/ folder")
+
         print("✓ Validated game structure")
+        print()
+
+        print("Patching KRONDOR.EXE (characters 0x80+)...")
+        patch_exe(exe_path)
         print()
 
         # Extract game resources

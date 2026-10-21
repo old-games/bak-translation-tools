@@ -1,7 +1,77 @@
-from io import StringIO
+"""Text encoding for the Russian translation.
 
-CyrillicText = str
-ASCIIText = str
+Cyrillic letters are stored at codes 0x80..0xC2, ASCII (including Latin) is
+kept as is. Codes 0xE0..0xFF are control codes for the game's text renderer,
+so they cannot be used for glyphs. Characters >= 0x80 get a proper width only
+with the patched KRONDOR.EXE (see `baktt.exe_patch`).
+
+TRANSLITERATION_TABLE is the previous scheme (Cyrillic drawn over Latin
+glyphs). The existing Russian fonts were drawn that way, so the table is only
+needed to migrate them (`baktt fonts migrate`).
+"""
+
+CYRILLIC_UPPER = "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+CYRILLIC_LOWER = "абвгдежзийклмнопрстуфхцчшщъыьэюя"
+
+CHARMAP: dict[str, int] = {
+    **{ch: 0x80 + i for i, ch in enumerate(CYRILLIC_UPPER)},
+    **{ch: 0xA0 + i for i, ch in enumerate(CYRILLIC_LOWER)},
+    "Ё": 0xC0,
+    "ё": 0xC1,
+    "—": 0xC2,
+}
+INVERSE_CHARMAP: dict[int, str] = {v: k for k, v in CHARMAP.items()}
+
+# the last code that must be present in a font
+LAST_CODE = max(CHARMAP.values())
+
+
+# Typography that has no glyphs: replaced the same way as in the original
+# English text.
+TYPOGRAPHY = {
+    "«": '"',
+    "»": '"',
+    "„": '"',
+    "“": '"',
+    "”": '"',
+    "’": "'",
+    "–": "-",
+    "…": "...",
+    "\u00a0": " ",
+}
+
+
+def encode(s: str) -> bytes:
+    """Unicode -> game bytes. Accepts ASCII, CHARMAP and TYPOGRAPHY."""
+    out = bytearray()
+    for char in s:
+        if char in TYPOGRAPHY:
+            out.extend(TYPOGRAPHY[char].encode("ascii"))
+            continue
+        if char in CHARMAP:
+            out.append(CHARMAP[char])
+        elif ord(char) < 0x80:
+            out.append(ord(char))
+        else:
+            raise ValueError(
+                f"Cannot encode character: {char!r}, code point {ord(char)}. "
+                f"Text: {s!r}"
+            )
+    return bytes(out)
+
+
+def decode(b: bytes) -> str:
+    """Game bytes -> Unicode. Bytes outside of the encoding are an error."""
+    out = []
+    for c in b:
+        if c < 0x80:
+            out.append(chr(c))
+        elif c in INVERSE_CHARMAP:
+            out.append(INVERSE_CHARMAP[c])
+        else:
+            raise ValueError(f"Cannot decode byte 0x{c:02X} in {b!r}")
+    return "".join(out)
+
 
 TRANSLITERATION_TABLE = {
     " ": 0x20,
@@ -102,21 +172,87 @@ TRANSLITERATION_TABLE = {
 }
 
 
-INVERSE_TRANSLITERATION_TABLE = {v: k for k, v in TRANSLITERATION_TABLE.items()}
-
-
-def encode(s: CyrillicText) -> ASCIIText:
-    buf = StringIO()
-    for char in s:
-        if char in TRANSLITERATION_TABLE:
-            encoded = chr(TRANSLITERATION_TABLE.get(char, ord(char)))
-        else:
-            if ord(char) > 127:
-                raise ValueError(
-                    f"Cannot encode character: {char!r}, code point {ord(char)}. "
-                    f"Text: {s!r}"
-                )
-            encoded = char
-        buf.write(encoded)
-    buf.seek(0)
-    return buf.read()
+# The Russian GAME.FNT was drawn with an earlier version of the scheme: soft
+# signs are at 0x58/0x78, "zhe" at 0x56/0x76, and there is no "yo".
+LEGACY_GAME_FONT_TABLE = {
+    **dict(
+        zip(
+            CYRILLIC_LOWER,
+            [
+                0x41,
+                0x42,
+                0x57,
+                0x47,
+                0x44,
+                0x45,
+                0x56,
+                0x5A,
+                0x49,
+                0x4A,
+                0x4B,
+                0x4C,
+                0x4D,
+                0x4E,
+                0x4F,
+                0x50,
+                0x52,
+                0x53,
+                0x54,
+                0x55,
+                0x46,
+                0x48,
+                0x43,
+                0x5E,
+                0x5B,
+                0x5D,
+                0x5F,
+                0x59,
+                0x58,
+                0x5C,
+                0x40,
+                0x51,
+            ],
+            strict=True,
+        )
+    ),
+    **dict(
+        zip(
+            CYRILLIC_UPPER,
+            [
+                0x61,
+                0x62,
+                0x77,
+                0x67,
+                0x64,
+                0x65,
+                0x76,
+                0x7A,
+                0x69,
+                0x6A,
+                0x6B,
+                0x6C,
+                0x6D,
+                0x6E,
+                0x6F,
+                0x70,
+                0x72,
+                0x73,
+                0x74,
+                0x75,
+                0x66,
+                0x68,
+                0x63,
+                0x7E,
+                0x7B,
+                0x7D,
+                0x3C,
+                0x79,
+                0x78,
+                0x7C,
+                0x60,
+                0x71,
+            ],
+            strict=True,
+        )
+    ),
+}

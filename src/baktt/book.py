@@ -10,7 +10,7 @@ from cyclopts import App
 from filebuffer import FileBuffer
 
 from baktt.csvtools import Section, load_sections, save_sections
-from baktt.encoding import encode
+from baktt.encoding import decode, encode
 
 app = App(name="book", help="Operations on the book files")
 
@@ -99,7 +99,7 @@ def import_csv(bok_dir: Path, imported_dir: Path, csv_path: Path) -> None:
             for text_block in page.text_blocks:
                 translated = strings.get(text_block.text)
                 if translated:
-                    text_block.text = encode(translated)
+                    text_block.text = translated
 
         book.to_file(imported_dir / filename)
 
@@ -153,7 +153,7 @@ class TextInfo:
     @property
     def bytes(self) -> bytes:
         assert self.text.startswith("\\i") or self.text.startswith("\\I")
-        byte_string = self.text.encode("ascii")
+        byte_string = encode(self.text)
         for placeholder, replacement in ITALICS.items():
             byte_string = byte_string.replace(placeholder.encode("ascii"), replacement)
         return byte_string
@@ -164,7 +164,7 @@ class TextInfo:
             byte_string = byte_string.replace(placeholder, replacement.encode("ascii"))
         assert b"\xf2" not in byte_string
         assert b"\xf3" not in byte_string
-        self.text = byte_string.decode("ascii")
+        self.text = decode(byte_string)
 
     def write(self, buf: FileBuffer) -> None:
         buf.put_uint8(0xF1)
@@ -290,7 +290,7 @@ class PageData:
         paragraph.bytes = bytes_buf.read()
         return paragraph, ord(char)
 
-    def write(self, buf: FileBuffer, is_last: bool) -> None:
+    def write(self, buf: FileBuffer) -> None:
         buf.put_uint16LE(self.x_pos)
         buf.put_uint16LE(self.y_pos)
         buf.put_uint16LE(self.width)
@@ -298,12 +298,10 @@ class PageData:
         buf.put_uint16LE(self.number)
         buf.put_uint16LE(self.id)
         buf.put_uint16LE(self.prev_id)
-        if is_last:
-            buf.put_uint16LE(65534)
-            buf.put_uint16LE(65535)
-        else:
-            buf.put_uint16LE(self.next_id)
-            buf.put_uint16LE(self.next_id)
+        # The "next page" fields are written as read: last pages of the original
+        # books have different values there (FFFF FFFF, 0011 0000, ...).
+        buf.write(self.skips[0])
+        buf.put_uint16LE(self.next_id)
         buf.put_uint16LE(self.flag)
         buf.put_uint16LE(len(self.decorations))
         buf.put_uint16LE(len(self.first_letters))
@@ -370,7 +368,7 @@ class Book:
                 decorations=decorations,
                 first_letters=first_letters,
                 text_blocks=text_blocks,
-                skips=skips,
+                skips=[(65534).to_bytes(2, "little"), *skips[1:]],
             )
         )
         last_page.next_id = self.pages[-1].id
@@ -386,8 +384,7 @@ class Book:
             page_offsets.append(page_offsets[-1] + page.size)
         for offset in page_offsets:
             buf.put_uint32LE(offset)
-        for i, page in enumerate(self.pages, 1):
-            is_last = i == len(self.pages)
-            page.write(buf, is_last)
+        for page in self.pages:
+            page.write(buf)
 
         buf.to_file(path)
