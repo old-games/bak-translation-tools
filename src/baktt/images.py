@@ -271,6 +271,63 @@ def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
     return written
 
 
+# Images with text to translate: BMX (image indices) from the BMX_TEXT list
+# of the translation team, the BOOK.BMX drop caps and the SCX screens with
+# titles. Everything else is sprites and backgrounds without text.
+TEXT_IMAGES: dict[str, list[int] | None] = {
+    "BICONS1.BMX": [13, 20, 57, 58, 59, 60, 61, 66],
+    "BICONS2.BMX": [13, 20, 57, 58, 59, 60, 61, 66],
+    "BOOK.BMX": [0, 1, 2, 3, 4, 5, 6, 15, 16, 17, 18],
+    "C61D_MAC.BMX": [0, 1, 2, 3, 4],
+    "CHAPTER.BMX": [12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+    "COMPASS.BMX": [0],
+    "INT_BOOK.BMX": [0],
+    "INT_BUNT.BMX": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    "INT_DYN.BMX": [0, 9],
+    "INT_LGHT.BMX": [10],
+    "INT_TITL.BMX": [0],
+    "INVMISC.BMX": [7],
+    "INVSHP1.BMX": [9, 60],
+    "POINTERG.BMX": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21,
+                     22, 23, 24, 25, 26],
+    "TELEPORT.BMX": [12],
+    "BLANK.SCX": None,
+    "CHAPTER.SCX": None,
+    "CONT2.SCX": None,
+    "CONTENTS.SCX": None,
+    "CREDITS.SCX": None,
+    "INT_MENU.SCX": None,
+    "OPTIONS0.SCX": None,
+    "OPTIONS1.SCX": None,
+}  # fmt: skip
+
+
+@app.command(name="text_images_to_png")
+def text_images_to_png_command(src_dir: Path, dest_dir: Path) -> None:
+    """Export only the images with text (TEXT_IMAGES) to PNG."""
+    text_images_to_png(src_dir, dest_dir)
+
+
+def text_images_to_png(src_dir: Path, dest_dir: Path) -> int:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for name, indexes in TEXT_IMAGES.items():
+        if name.endswith(".SCX"):
+            scx_to_png(src_dir / name, dest_dir)
+            count += 1
+            continue
+        palette = Palette.get_by_name(src_dir, BMXResource.PALETTES[name])
+        path = src_dir / name
+        resource = (
+            TaggedBMXResource if TaggedBMXResource.is_tagged(path) else BMXResource
+        ).from_file(path)
+        for index in indexes or range(len(resource.images)):
+            resource.images[index].to_png(dest_dir / f"{name}_{index}.png", palette)
+            count += 1
+    print(f"{count} images with text exported to {dest_dir}")
+    return count
+
+
 @dataclass
 class BMXResource:
     # noinspection SpellCheckingInspection

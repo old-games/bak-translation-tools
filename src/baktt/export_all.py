@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 from baktt import book, dialog, exe_text, keyword, misc, mnames, objinfo, party, ui
-from baktt.images import all_bmx_to_png, all_scx_to_png
+from baktt.images import all_bmx_to_png, all_scx_to_png, text_images_to_png
 from baktt.resources import extract_resources
 
 README = Path(__file__).resolve().parents[2] / "data" / "README.md"
@@ -20,13 +20,16 @@ def _find(game_dir: Path, name: str) -> Path:
     raise FileNotFoundError(f"{name} not found in {game_dir}")
 
 
-def export_all(game_dir: Path, out_dir: Path, images: bool = True) -> None:
+def export_all(
+    game_dir: Path, out_dir: Path, images: bool = True, all_images: bool = False
+) -> None:
     """Export all texts to translate (and the images) from an installed game.
 
     `game_dir` must contain KRONDOR.EXE, krondor.rmf, krondor.001 and
     startup.gam (version 1.02). Creates in `out_dir`: one CSV per kind of
-    text (key, english, russian[, note]), DROPCAPS.csv, images/ with PNGs and
-    README.md with the rules for translators.
+    text (key, english, russian[, note]), DROPCAPS.csv, images/ with PNGs of
+    the images with text (all images with --all-images) and README.md with
+    the rules for translators.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     exe = _find(game_dir, "krondor.exe")
@@ -50,10 +53,12 @@ def export_all(game_dir: Path, out_dir: Path, images: bool = True) -> None:
         exe_text.export_command(exe, out_dir / "EXE.csv")
         book.dropcaps_export_command(extracted, out_dir / "DROPCAPS.csv")
 
-        if images:
-            print("Exporting images to PNG...")
+        if all_images:
+            print("Exporting all images to PNG...")
             all_bmx_to_png(extracted, out_dir / "images")
             all_scx_to_png(extracted, out_dir / "images")
+        elif images:
+            text_images_to_png(extracted, out_dir / "images")
         if README.exists():
             shutil.copy(README, out_dir / "README.md")
     finally:

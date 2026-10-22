@@ -29,7 +29,8 @@ the developers of the `xbak` port.
 
 ## Command Line Tools
 
-* `uv run baktt export-all <game dir> <out dir>` - Export everything to translate from an installed game (1.02): one CSV per kind of text, DROPCAPS.csv, images as PNG, README with the rules
+* `uv run baktt sp export <csv dir> <out dir>` / `sp import <xlsx> <keys.csv> <csv>` - XLSX for the old-games.ru translation system (column A original, B translation, no keys: rows are matched by order) and back
+* `uv run baktt export-all <game dir> <out dir>` - Export everything to translate from an installed game (1.02): one CSV per kind of text, DROPCAPS.csv, the images with text as PNG (`--all-images` for all), README with the rules
 * `uv run baktt resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
 * `uv run baktt fonts` - Operations on the font files (.FNT)
 * `uv run baktt book` - Operations on the book files (.BOK): texts, drop caps (`dropcaps-export`/`dropcaps-import`)
@@ -40,7 +41,7 @@ the developers of the `xbak` port.
 * `uv run baktt party` - Party member names in STARTUP.GAM (substituted for @ in texts)
 * `uv run baktt ui` - Buttons and labels (REQ_*.DAT, LBL_*.DAT used by the game)
 * `uv run baktt misc` - Spell names and descriptions, town names on the map (SPELLS.DAT, SPELLDOC.DAT, INVSPELL.DAT, FMAP_TWN.DAT)
-* `uv run baktt images` - Operations on the image files (.PAL, .SCX, .BMX): export to PNG, build from edited PNGs (`from_png`)
+* `uv run baktt images` - Operations on the image files (.PAL, .SCX, .BMX): export to PNG (`text_images_to_png` - only the images with text), build from edited PNGs (`from_png`)
 * `uv run baktt exe` - Patch `KRONDOR.EXE` so that font characters 0x80+ can be used
 * `uv run baktt exe-text` - Texts in `KRONDOR.EXE` (in place; longer DGROUP strings are moved to an extended DGROUP)
 * `uv run baktt patch-game` - Create a translated game archive (see `data/README.md`)
