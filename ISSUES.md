@@ -26,4 +26,4 @@ Fix:
 - Cyrillic is stored at 0x80..0xC2 (`src/baktt/encoding.py`), Latin glyphs stay, so Roman page
   numbers work again. Verified in DOSBox: dialogs, books (wrapping, justification, italics, page
   numbers) and the main menu.
-- Existing Russian fonts are converted with `baktt fonts migrate`.
+- The Russian fonts were converted to this layout (Cyrillic at 0x80+).

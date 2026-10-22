@@ -7,13 +7,6 @@ import bitstring
 from cyclopts import App
 from filebuffer import FileBuffer
 
-from baktt.encoding import (
-    INVERSE_CHARMAP,
-    LAST_CODE,
-    LEGACY_GAME_FONT_TABLE,
-    TRANSLITERATION_TABLE,
-)
-
 app = App(name="fonts", help="Operations on the font files")
 
 
@@ -27,108 +20,6 @@ def display_command(font_path: Path) -> None:
 def copy_command(src: Path, dest: Path) -> None:
     """Copy a font file."""
     copy_font(src, dest)
-
-
-LEGACY_TABLES = {
-    "book": TRANSLITERATION_TABLE,
-    "game": LEGACY_GAME_FONT_TABLE,
-    # PUZZLE.FNT: the GAME scheme plus Ё/ё at 0x24/0x26
-    "puzzle": {**LEGACY_GAME_FONT_TABLE, "Ё": 0x24, "ё": 0x26},
-}
-
-
-def make_em_dash(font: Font) -> Glyph:
-    """Em dash made from the font's hyphen: same thickness, 4 pixels longer."""
-    hyphen = font.glyphs[ord("-") - font.first]
-    ink = 0
-    for row in hyphen.rows:
-        ink |= row
-    left = next(x for x in range(16) if ink & (0x8000 >> x))
-    right = max(x for x in range(16) if ink & (0x8000 >> x))
-    length = right - left + 1 + 4
-    mask = ((1 << length) - 1) << (16 - left - length)
-    rows = [mask if row else 0 for row in hyphen.rows]
-    return Glyph(width=left + length + 1, rows=rows)
-
-
-# characters missing both in the English and in the legacy Russian fonts
-DRAWN = {"—": make_em_dash}
-
-
-def make_yo(base: Glyph) -> Glyph:
-    """Cyrillic small yo from small ie: two dots two rows above the top of the
-    letter, over its second and last ink columns (as in the GAME font design
-    on the board)."""
-    ink_rows = [y for y, row in enumerate(base.rows) if row]
-    ink = 0
-    for row in base.rows:
-        ink |= row
-    columns = [x for x in range(16) if ink & (0x8000 >> x)]
-    rows = list(base.rows)
-    top = ink_rows[0] - 2
-    if top >= 0:
-        rows[top] |= (0x8000 >> (columns[0] + 1)) | (0x8000 >> columns[-1])
-    return Glyph(width=base.width, rows=rows)
-
-
-# letters missing in a legacy font: drawn from another letter, or a substitute
-DRAWN_FROM = {"ё": ("е", make_yo)}
-
-# temporary substitutes for letters missing in a legacy font
-FALLBACKS = {"Ё": "Е"}
-
-
-@app.command(name="migrate")
-def migrate_command(
-    english: Path, legacy: Path, dest: Path, table: str = "book"
-) -> None:
-    """Move Cyrillic glyphs of a legacy font (drawn over Latin) to codes 0x80+.
-
-    Latin glyphs are taken from the original English font `english`, Cyrillic
-    glyphs from `legacy` according to `table`: "book" is the current
-    TRANSLITERATION_TABLE, "game" is the earlier scheme used by GAME.FNT,
-    "puzzle" is the same plus Ё/ё (PUZZLE.FNT).
-    """
-    migrate_font(english, legacy, dest, LEGACY_TABLES[table])
-
-
-def migrate_font(
-    english: Path, legacy: Path, dest: Path, table: dict[str, int]
-) -> None:
-    en = Font.from_file(english)
-    ru = Font.from_file(legacy)
-    assert en.first == ru.first, (en.first, ru.first)
-    assert en.height == ru.height, (en.height, ru.height)
-
-    def ru_glyph(code: int) -> Glyph:
-        return ru.glyphs[code - ru.first].copy()
-
-    glyphs = [g.copy() for g in en.glyphs]
-    question = en.glyphs[ord("?") - en.first]
-    # fonts with first == 0 (PUZZLE, ALIEN) already have empty slots up to 0xFA
-    while en.first + len(glyphs) <= LAST_CODE:
-        glyphs.append(question.copy())
-    for code in range(0x80, LAST_CODE + 1):
-        char = INVERSE_CHARMAP[code]
-        if char in DRAWN:
-            glyph = DRAWN[char](en)
-        elif char in table:
-            glyph = ru_glyph(table[char])
-        elif char in DRAWN_FROM:
-            source, draw = DRAWN_FROM[char]
-            print(f"  {char!r} is missing, drawn from {source!r}")
-            glyph = draw(ru_glyph(table[source]))
-        else:
-            print(f"  {char!r} is missing, using {FALLBACKS[char]!r} for now")
-            glyph = ru_glyph(table[FALLBACKS[char]])
-        glyphs[code - en.first] = glyph
-
-    font = Font(
-        name=dest.name, height=en.height, first=en.first, glyphs=glyphs, skips=en.skips
-    )
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    font.to_file(dest)
-    print(f"{dest}: {len(glyphs)} glyphs, 0x{en.first:02X}..0x{LAST_CODE:02X}")
 
 
 def display_font(font_path: Path) -> None:

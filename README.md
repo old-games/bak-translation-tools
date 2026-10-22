@@ -54,9 +54,8 @@ Latin letters are kept, so Roman page numbers in books still work. The original
 so the game must be patched with `baktt exe patch` (`patch-game` does it
 automatically). Supported version: 1.02.
 
-Fonts drawn with the previous scheme (Cyrillic over Latin glyphs) are converted
-with `baktt fonts migrate`, which takes Latin glyphs from the original English
-font and moves Cyrillic ones to 0x80+.
+Russian fonts must have Cyrillic glyphs at 0x80..0xC2 too; edit them with the
+font editor (characters are labeled in this encoding).
 
 Use `--help` flag to see the available options.
 
@@ -66,9 +65,11 @@ Run the font editor with `uv run baktt gui font-editor`
 
 ## Building the Font Editor for Windows
 
+GitHub Actions builds it on every change of the editor or the fonts code: the `baktt-font-editor-windows` artifact of the "Font editor for Windows" workflow. To build it yourself:
+
 1. Make sure you have all requirements installed and have the project set up (see above).
 2. Install `PyInstaller`: `uv pip install PyInstaller --python .venv\Scripts\python.exe`
-3. Build the executable file: `uv run python -m PyInstaller --noconsole --onefile .\src\baktt\gui\font_editor.py`
+3. Build the executable file: `uv run python -m PyInstaller --noconsole --onefile --name baktt-font-editor .\packaging\font_editor.py`
 4. The `.exe` file is saved to `dist` folder.
 
 ## TODO/Status
