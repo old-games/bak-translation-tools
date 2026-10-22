@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import struct
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, NamedTuple
@@ -9,6 +10,13 @@ from cyclopts import App
 from filebuffer import FileBuffer
 from PIL import Image as PILImage
 from PIL import ImageDraw
+
+from baktt.compression import (
+    compress_lzss,
+    compress_lzw,
+    decompress_lzss,
+    decompress_lzw,
+)
 
 app = App(name="images", help="Operations on the image files")
 
@@ -119,8 +127,148 @@ class Image:
             pixels=pixels,
         )
 
-    def to_buf(self, buf: FileBuffer) -> None:
-        raise NotImplementedError
+    def to_bytes(self) -> bytes:
+        """Encode pixels back the way from_buf reads them (flags included)."""
+        width, height = self.width, self.height
+        if self.flags & self.FLAG_XYSWAPPED:
+            raw = bytes(
+                self.pixels[x + width * y] for x in range(width) for y in range(height)
+            )
+        elif self.hires_locol:
+            raw = bytes(
+                (self.pixels[i] << 4) | self.pixels[i + 1]
+                for i in range(0, width * height, 2)
+            )
+        else:
+            raw = bytes(self.pixels)
+        if self.flags & self.FLAG_COMPRESSED:
+            buf = FileBuffer(len(raw))
+            buf.write(raw)
+            _, compressed = buf.compressRLE()
+            raw = compressed.read()
+        return raw
+
+    @classmethod
+    def from_png(
+        cls,
+        path: Path,
+        palette: Palette,
+        like: Image,
+        allow_resize: bool = False,
+    ) -> Image:
+        """Load a PNG with the flags of `like`, mapping colors to the palette.
+        Pixels whose color did not change keep their original index (palettes
+        may contain the same color several times). The size must match `like`
+        unless allow_resize."""
+        png = PILImage.open(path).convert("RGB")
+        if png.size != (like.width, like.height):
+            if not allow_resize:
+                raise ValueError(
+                    f"{path}: size {png.size}, expected {(like.width, like.height)}"
+                )
+            if like.hires_locol and png.size[0] % 2:
+                raise ValueError(f"{path}: the width must be even")
+            like = Image(
+                width=png.size[0],
+                height=png.size[1],
+                flags=like.flags,
+                hires_locol=like.hires_locol,
+                pixels=[-1] * (png.size[0] * png.size[1]),
+            )
+        colors = [(c.r, c.g, c.b) for c in palette.colors]
+        exact: dict[tuple[int, int, int], int] = {}
+        for index, color in enumerate(colors):
+            exact.setdefault(color, index)
+        max_index = 15 if like.hires_locol else len(colors) - 1
+        nearest_cache: dict[tuple[int, int, int], int] = {}
+        pixels = []
+        approximated = 0
+        data = png.load()
+        for y in range(like.height):
+            for x in range(like.width):
+                rgb = data[x, y]
+                original = like.pixels[x + like.width * y]
+                if 0 <= original < len(colors) and colors[original] == rgb:
+                    pixels.append(original)
+                elif rgb in exact and exact[rgb] <= max_index:
+                    pixels.append(exact[rgb])
+                else:
+                    if rgb not in nearest_cache:
+                        nearest_cache[rgb] = min(
+                            range(max_index + 1),
+                            key=lambda i: sum(
+                                (a - b) ** 2
+                                for a, b in zip(colors[i], rgb, strict=True)
+                            ),
+                        )
+                    pixels.append(nearest_cache[rgb])
+                    approximated += 1
+        if approximated:
+            print(
+                f"  {path.name}: {approximated} pixels with colors not in the palette"
+            )
+        return Image(
+            width=like.width,
+            height=like.height,
+            flags=like.flags,
+            hires_locol=like.hires_locol,
+            pixels=pixels,
+        )
+
+
+@app.command(name="from_png")
+def from_png_command(src_dir: Path, png_dir: Path, dest_dir: Path) -> None:
+    """Build BMX/SCX files from edited PNGs.
+
+    PNG names are the ones produced by bmx_to_png/scx_to_png:
+    NAME.BMX_<index>.png and NAME.SCX.png. Images of a BMX without a PNG stay
+    unchanged. The palette is taken from the PALETTES tables. In BOOK.BMX
+    images may change size and new ones may be appended (the next index).
+    """
+    images_from_png(src_dir, png_dir, dest_dir)
+
+
+def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
+    bmx_pngs: dict[str, dict[int, Path]] = {}
+    scx_pngs: dict[str, Path] = {}
+    for png in sorted(png_dir.glob("*.png")):
+        stem = png.name[: -len(".png")]
+        if ".BMX_" in stem:
+            name, _, index = stem.rpartition("_")
+            bmx_pngs.setdefault(name, {})[int(index)] = png
+        elif stem.endswith(".SCX"):
+            scx_pngs[stem] = png
+        else:
+            raise ValueError(f"{png}: expected NAME.BMX_<n>.png or NAME.SCX.png")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for name, pngs in bmx_pngs.items():
+        pal_name = BMXResource.PALETTES.get(name)
+        if pal_name is None:
+            raise ValueError(f"{name}: unknown palette, add it to BMXResource.PALETTES")
+        palette = Palette.get_by_name(src_dir, pal_name)
+        tagged = TaggedBMXResource.is_tagged(src_dir / name)
+        bmx = (TaggedBMXResource if tagged else BMXResource).from_file(src_dir / name)
+        for index, png in sorted(pngs.items()):
+            if index < len(bmx.images):
+                like = bmx.images[index]
+            elif tagged and index == len(bmx.images):
+                # a new image (e.g. a Cyrillic drop cap) appended to the end
+                like = Image(width=0, height=0, flags=0, hires_locol=True, pixels=[])
+                bmx.images.append(like)
+            else:
+                raise ValueError(f"{png}: no image {index} in {name}")
+            bmx.images[index] = Image.from_png(png, palette, like, allow_resize=tagged)
+        bmx.to_file(dest_dir / name)
+        written.append(name)
+    for name, png in scx_pngs.items():
+        palette = Palette.get_by_name(src_dir, SCXResource.PALETTES[name])
+        scx = SCXResource.from_file(src_dir / name)
+        scx.image = Image.from_png(png, palette, scx.image)
+        scx.to_file(dest_dir / name)
+        written.append(name)
+    print(f"{len(written)} image files written to {dest_dir}")
+    return written
 
 
 @dataclass
@@ -191,7 +339,7 @@ class BMXResource:
         "AIR3.BMX": "Z01.PAL",
         "BICONS1.BMX": "OPTIONS.PAL",
         "BICONS2.BMX": "OPTIONS.PAL",
-        "BOOK.BMX": "Z01.PAL",
+        "BOOK.BMX": "BOOK.PAL",
         "BOOM.BMX": "Z01.PAL",
         "BRK1.BMX": "Z01.PAL",
         "BRK2.BMX": "Z01.PAL",
@@ -552,52 +700,32 @@ class BMXResource:
     skips: list[bytes]
 
     def to_file(self, path: Path) -> None:
-        uncompressed_size = sum(i.size for i in self.images)
-        uncompressed_buf = FileBuffer(uncompressed_size)
-        for image in self.images:
-            image.to_buf(uncompressed_buf)
-
+        encoded = [image.to_bytes() for image in self.images]
+        uncompressed = b"".join(encoded)
         if self.compression == self.COMPRESSION_LZW:
-            raise NotImplementedError("LZW compression is not supported yet")
+            compressed = b"\x02" + struct.pack("<I", len(uncompressed))
+            compressed += compress_lzw(uncompressed)
         elif self.compression == self.COMPRESSION_LZSS:
-            raise NotImplementedError("LZSS compression is not supported yet")
+            compressed = compress_lzss(uncompressed)
         elif self.compression == self.COMPRESSION_RLE:
-            compressed_size, compressed_buf = uncompressed_buf.compressRLE()
+            buf = FileBuffer(len(uncompressed))
+            buf.write(uncompressed)
+            _, rle = buf.compressRLE()
+            compressed = rle.read()
         else:
-            raise AssertionError()
+            raise AssertionError(self.compression)
 
-        size = (
-            2
-            + 2  # data validation
-            + 2  # compression
-            + len(self.skips[0])  # num images
-            + 4  # first skip
-            + 2 * 4 * len(self.images)  # uncompressed size
-            + compressed_size  # image attributes
-        )
-        if self.compression == self.COMPRESSION_LZW:
-            size += 5
-
-        buf = FileBuffer(size)
-        buf.put_uint16LE(0x1066)
-        buf.put_uint16LE(self.compression)
-        buf.put_uint16LE(len(self.images))
-        buf.write(self.skips[0])
-        buf.put_uint32LE(uncompressed_size)
-
-        for image in self.images:
-            buf.put_uint16LE(image.size)
-            buf.put_uint16LE(image.flags)
-            buf.put_uint16LE(image.width)
-            buf.put_uint16LE(image.height)
-
-        if self.compression == self.COMPRESSION_LZW:
-            buf.put_uint8(0x02)
-            buf.put_uint32LE(uncompressed_size)
-
-        buf.write(compressed_buf.read())
-
-        buf.to_file(path)
+        out = bytearray(struct.pack("<HHH", 0x1066, self.compression, len(self.images)))
+        out += self.skips[0]
+        out += struct.pack("<I", len(uncompressed))
+        for image, data in zip(self.images, encoded, strict=True):
+            if len(data) > 0xFFFF:
+                raise ValueError(f"image data is {len(data)} bytes, max 65535")
+            out += struct.pack(
+                "<HHHH", len(data), image.flags, image.width, image.height
+            )
+        out += compressed
+        path.write_bytes(bytes(out))
 
     @classmethod
     def from_file(cls, path: Path) -> BMXResource:
@@ -622,9 +750,9 @@ class BMXResource:
                 raise ValueError("Data corruption")
             if buf.uint32LE() != uncompressed_size:
                 raise ValueError("Data corruption")
-            decompressed_buf = buf.decompressLZW(uncompressed_size)
+            decompressed_buf = _decompress(buf, "lzw", uncompressed_size)
         elif compression == cls.COMPRESSION_LZSS:
-            decompressed_buf = buf.decompressLZSS(uncompressed_size)
+            decompressed_buf = _decompress(buf, "lzss", uncompressed_size)
         elif compression == cls.COMPRESSION_RLE:
             decompressed_buf = buf.decompressRLE(uncompressed_size)
         else:
@@ -642,6 +770,75 @@ class BMXResource:
             images=images,
             skips=skips,
         )
+
+
+def _decompress(buf: FileBuffer, method: str, size: int) -> FileBuffer:
+    """LZW/LZSS with the Python decoders: the C++ ones write past the end of
+    the output buffer when the last code expands beyond `size`."""
+    data = buf.read()
+    raw = (decompress_lzw if method == "lzw" else decompress_lzss)(data, size)
+    if len(raw) != size:
+        raise ValueError(f"{method}: got {len(raw)} bytes, expected {size}")
+    result = FileBuffer(size)
+    result.write(raw)
+    result.seek(0)
+    return result
+
+
+@dataclass
+class TaggedBMXResource:
+    """BOOK.BMX: tagged chunks "BMP:" (container) > "INF:" (u16 count, count
+    widths, count heights) and "BIN:" (u8 compression = 2 LZW, u32 size,
+    data). Images are 16-color, two pixels per byte. Book drop caps and
+    decorations; images may be added and resized (sizes are in INF)."""
+
+    MAGIC = b"BMP:"
+    images: list[Image]
+
+    @classmethod
+    def is_tagged(cls, path: Path) -> bool:
+        with open(path, "rb") as f:
+            return f.read(4) == cls.MAGIC
+
+    @classmethod
+    def from_file(cls, path: Path) -> TaggedBMXResource:
+        data = path.read_bytes()
+        if data[:4] != cls.MAGIC or data[8:12] != b"INF:":
+            raise ValueError(f"{path}: not a tagged BMX")
+        (inf_size,) = struct.unpack_from("<I", data, 12)
+        (count,) = struct.unpack_from("<H", data, 16)
+        widths = struct.unpack_from(f"<{count}H", data, 18)
+        heights = struct.unpack_from(f"<{count}H", data, 18 + 2 * count)
+        p = 16 + inf_size
+        if data[p : p + 4] != b"BIN:" or data[p + 8] != 2:
+            raise ValueError(f"{path}: expected an LZW BIN chunk")
+        (bin_size,) = struct.unpack_from("<I", data, p + 4)
+        (size,) = struct.unpack_from("<I", data, p + 9)
+        raw = decompress_lzw(data[p + 13 : p + 8 + bin_size], size)
+        images = []
+        q = 0
+        for width, height in zip(widths, heights, strict=True):
+            n = width * height // 2
+            buf = FileBuffer(n)
+            buf.write(raw[q : q + n])
+            buf.seek(0)
+            q += n
+            images.append(Image.from_buf(buf, width, height, hires_locol=True))
+        return cls(images=images)
+
+    def to_file(self, path: Path) -> None:
+        count = len(self.images)
+        inf = struct.pack(
+            f"<H{count}H{count}H",
+            count,
+            *(i.width for i in self.images),
+            *(i.height for i in self.images),
+        )
+        raw = b"".join(i.to_bytes() for i in self.images)
+        payload = b"\x02" + struct.pack("<I", len(raw)) + compress_lzw(raw)
+        body = b"INF:" + struct.pack("<I", len(inf)) + inf
+        body += b"BIN:" + struct.pack("<I", len(payload)) + payload
+        path.write_bytes(self.MAGIC + struct.pack("<I", len(body) | 0x80000000) + body)
 
 
 class UnknownPaletteError(Exception):
@@ -706,7 +903,7 @@ class SCXResource:
         if buf.uint8() != 0x02:
             raise ValueError("Data corruption")
         decompressed_size = buf.uint32LE()
-        decompressed_buf = buf.decompressLZW(decompressed_size)
+        decompressed_buf = _decompress(buf, "lzw", decompressed_size)
         if is_book_screen:
             width = cls.BOOK_SCREEN_WIDTH
             height = cls.BOOK_SCREEN_HEIGHT
@@ -719,7 +916,10 @@ class SCXResource:
         return SCXResource(image=image)
 
     def to_file(self, path: Path) -> None:
-        raise NotImplementedError
+        raw = self.image.to_bytes()
+        out = b"" if self.image.hires_locol else struct.pack("<H", 0x27B6)
+        out += b"\x02" + struct.pack("<I", len(raw)) + compress_lzw(raw)
+        path.write_bytes(out)
 
 
 class Color(NamedTuple):
@@ -873,7 +1073,10 @@ def bmx_to_png(
                 )
         return
     try:
-        bmx_resource = BMXResource.from_file(bmx_path)
+        if TaggedBMXResource.is_tagged(bmx_path):
+            bmx_resource = TaggedBMXResource.from_file(bmx_path)
+        else:
+            bmx_resource = BMXResource.from_file(bmx_path)
     except Exception as e:
         print(bmx_filename, e)
         return

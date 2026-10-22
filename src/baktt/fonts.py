@@ -32,6 +32,8 @@ def copy_command(src: Path, dest: Path) -> None:
 LEGACY_TABLES = {
     "book": TRANSLITERATION_TABLE,
     "game": LEGACY_GAME_FONT_TABLE,
+    # PUZZLE.FNT: the GAME scheme plus Ё/ё at 0x24/0x26
+    "puzzle": {**LEGACY_GAME_FONT_TABLE, "Ё": 0x24, "ё": 0x26},
 }
 
 
@@ -52,8 +54,28 @@ def make_em_dash(font: Font) -> Glyph:
 # characters missing both in the English and in the legacy Russian fonts
 DRAWN = {"—": make_em_dash}
 
+
+def make_yo(base: Glyph) -> Glyph:
+    """Cyrillic small yo from small ie: two dots two rows above the top of the
+    letter, over its second and last ink columns (as in the GAME font design
+    on the board)."""
+    ink_rows = [y for y, row in enumerate(base.rows) if row]
+    ink = 0
+    for row in base.rows:
+        ink |= row
+    columns = [x for x in range(16) if ink & (0x8000 >> x)]
+    rows = list(base.rows)
+    top = ink_rows[0] - 2
+    if top >= 0:
+        rows[top] |= (0x8000 >> (columns[0] + 1)) | (0x8000 >> columns[-1])
+    return Glyph(width=base.width, rows=rows)
+
+
+# letters missing in a legacy font: drawn from another letter, or a substitute
+DRAWN_FROM = {"ё": ("е", make_yo)}
+
 # temporary substitutes for letters missing in a legacy font
-FALLBACKS = {"Ё": "Е", "ё": "е"}
+FALLBACKS = {"Ё": "Е"}
 
 
 @app.command(name="migrate")
@@ -64,7 +86,8 @@ def migrate_command(
 
     Latin glyphs are taken from the original English font `english`, Cyrillic
     glyphs from `legacy` according to `table`: "book" is the current
-    TRANSLITERATION_TABLE, "game" is the earlier scheme used by GAME.FNT.
+    TRANSLITERATION_TABLE, "game" is the earlier scheme used by GAME.FNT,
+    "puzzle" is the same plus Ё/ё (PUZZLE.FNT).
     """
     migrate_font(english, legacy, dest, LEGACY_TABLES[table])
 
@@ -82,17 +105,23 @@ def migrate_font(
 
     glyphs = [g.copy() for g in en.glyphs]
     question = en.glyphs[ord("?") - en.first]
-    while en.first + len(glyphs) < 0x80:
+    # fonts with first == 0 (PUZZLE, ALIEN) already have empty slots up to 0xFA
+    while en.first + len(glyphs) <= LAST_CODE:
         glyphs.append(question.copy())
     for code in range(0x80, LAST_CODE + 1):
         char = INVERSE_CHARMAP[code]
         if char in DRAWN:
-            glyphs.append(DRAWN[char](en))
-            continue
-        if char not in table:
+            glyph = DRAWN[char](en)
+        elif char in table:
+            glyph = ru_glyph(table[char])
+        elif char in DRAWN_FROM:
+            source, draw = DRAWN_FROM[char]
+            print(f"  {char!r} is missing, drawn from {source!r}")
+            glyph = draw(ru_glyph(table[source]))
+        else:
             print(f"  {char!r} is missing, using {FALLBACKS[char]!r} for now")
-            char = FALLBACKS[char]
-        glyphs.append(ru_glyph(table[char]))
+            glyph = ru_glyph(table[FALLBACKS[char]])
+        glyphs[code - en.first] = glyph
 
     font = Font(
         name=dest.name, height=en.height, first=en.first, glyphs=glyphs, skips=en.skips

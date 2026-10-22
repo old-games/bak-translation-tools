@@ -38,6 +38,12 @@ app = App(name="dialog", help="Operations on the dialog files (.DDX)")
 
 HEADER_SIZE = 9
 RECORD_SIZE = 10
+
+# KRONDOR.EXE copies snippet text with expanded @N substitutions into a buffer
+# of 0x3C8C bytes (allocated at file offset 0x33BF5) without bounds checking.
+TEXT_BUFFER_SIZE = 0x3C8C
+# room reserved for every @N substitution (a name or an amount of money)
+SUBSTITUTION_SIZE = 40
 KEY_MASK = 0xF0000000
 PUSH_NEXT_DIALOG = 0x10
 CSV_HEADER = ("key", "english", "russian")
@@ -162,6 +168,63 @@ class DialogFile:
                     at = new_offset[start] + HEADER_SIZE + RECORD_SIZE * i + pos
                     struct.pack_into("<I", out, at, new_offset[target])
         return bytes(out)
+
+
+# --- word locks ---------------------------------------------------------------
+
+# Word locks (chests opened by a word, BaKGL: "fairy chests") are snippets of
+# DIAL_Z17.DDX: "ANSWER\n#\n<one row of wheel letters per line>\n#\n<riddle>".
+# Each row is as long as the answer; column i of the rows holds the letters of
+# wheel i, one of them is the answer letter. The letters are drawn with
+# PUZZLE.FNT (or ALIEN.FNT for moredhel chests).
+WORDLOCK_MAX_LENGTH = 11  # the longest answer in the original game
+
+
+def parse_wordlock(text: str) -> tuple[str, list[str], str] | None:
+    parts = text.split("\n#")
+    if len(parts) != 3 or not parts[1].startswith("\n"):
+        return None
+    return parts[0], parts[1].split("\n")[1:], parts[2]
+
+
+def check_wordlock(russian: str, english: str) -> list[str]:
+    """Problems of a translated word lock (empty if it is fine)."""
+    original = parse_wordlock(english)
+    assert original is not None
+    lock = parse_wordlock(russian)
+    if lock is None:
+        return ["word lock: expected ANSWER, #, wheel rows, #, riddle"]
+    answer, rows, _riddle = lock
+    problems = []
+    if not answer:
+        problems.append("word lock: empty answer")
+    if len(answer) > WORDLOCK_MAX_LENGTH:
+        problems.append(
+            f"word lock: answer is {len(answer)} letters, max {WORDLOCK_MAX_LENGTH}"
+        )
+    if len(rows) != len(original[1]):
+        problems.append(
+            f"word lock: {len(rows)} wheel rows, the original has {len(original[1])}"
+        )
+    for row in rows:
+        if len(row) != len(answer):
+            problems.append(f"word lock: row {row!r} is not as long as {answer!r}")
+    allowed = set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ0123456789 "
+    )
+    bad = sorted(set(answer + "".join(rows)) - allowed)
+    if bad:
+        problems.append(f"word lock: not capital letters/digits: {''.join(bad)!r}")
+    if not problems:
+        for i, letter in enumerate(answer):
+            column = {row[i] for row in rows}
+            if letter == " " and column != {" "}:
+                problems.append(f"word lock: column {i + 1} must be spaces only")
+            elif letter not in column:
+                problems.append(
+                    f"word lock: answer letter {letter!r} is not on wheel {i + 1}"
+                )
+    return problems
 
 
 # --- text <-> markup -----------------------------------------------------------
@@ -298,11 +361,25 @@ def import_csv(ddx_dir: Path, imported_dir: Path, csv_path: Path) -> None:
                 continue
             if not russian.strip():
                 continue
+            if parse_wordlock(english):
+                problems = check_wordlock(russian, english)
+                if problems:
+                    errors.extend(f"{key}: {problem}" for problem in problems)
+                    continue
             try:
-                snippet.text = markup_to_text(russian)
+                text = markup_to_text(russian)
             except ValueError as e:
                 errors.append(f"{key}: {e}")
                 continue
+            size = len(text) + 1 + text.count(b"@") * SUBSTITUTION_SIZE
+            if size > TEXT_BUFFER_SIZE:
+                errors.append(
+                    f"{key}: text is too long ({len(text)} bytes, with "
+                    f"substitutions up to {size}; the game buffer is "
+                    f"{TEXT_BUFFER_SIZE})"
+                )
+                continue
+            snippet.text = text
             used += 1
         (imported_dir / path.name).write_bytes(dialog.to_bytes())
     for error in errors:
