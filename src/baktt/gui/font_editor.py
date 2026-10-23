@@ -12,7 +12,7 @@ from tkinter.ttk import LabelFrame
 import bitstring
 from cyclopts import App
 
-from baktt.encoding import INVERSE_TRANSLITERATION_TABLE
+from baktt.encoding import INVERSE_CHARMAP
 from baktt.fonts import Font, Glyph
 
 HI_RES = False
@@ -40,10 +40,14 @@ class DrawnGlyph:
         self.pixel_height = pixel_height
         self.pixel_width = pixel_width
         self.outline = outline
+        # Explicit white background: with the default one (dark in macOS dark
+        # mode) black pixels at the glyph edges are invisible.
         self.canvas = tk.Canvas(
             parent,
             width=16 * pixel_width,
             height=height * pixel_height,
+            background="white",
+            highlightthickness=0,
         )
 
     def draw(self, glyph: Glyph) -> None:
@@ -58,7 +62,7 @@ class DrawnGlyph:
                     col_idx * self.pixel_width,
                     row_idx * self.pixel_height,
                     (col_idx + 1) * self.pixel_width,
-                    (row_idx + 1) * self.pixel_width,
+                    (row_idx + 1) * self.pixel_height,
                     fill="black" if filled else "white",
                     outline=self.outline,
                 )
@@ -187,7 +191,7 @@ class Application(tk.Frame):
         self.characters = []
 
         for char_idx, glyph in enumerate(self.font.glyphs, self.font.first):
-            char = INVERSE_TRANSLITERATION_TABLE.get(char_idx, chr(char_idx))
+            char = INVERSE_CHARMAP.get(char_idx, chr(char_idx))
             character = Character(self, char_idx, char, glyph)
             self.characters.append(character)
 

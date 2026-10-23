@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -10,7 +11,7 @@ from cyclopts import App
 from filebuffer import FileBuffer
 
 from baktt.csvtools import Section, load_sections, save_sections
-from baktt.encoding import encode
+from baktt.encoding import decode, encode
 
 app = App(name="book", help="Operations on the book files")
 
@@ -59,6 +60,117 @@ def copy_book(src: Path, dest: Path) -> None:
     print(f"{src} is copied to {dest}")
 
 
+# Drop caps in BOOK.BMX: image index -> letter. The other images (7..14) are
+# corners and vines.
+DROP_CAPS = {
+    0: "B",
+    1: "P",
+    2: "J",
+    3: "L",
+    4: "G",
+    5: "A",
+    6: "T",
+    15: "O",
+    16: "I",
+    17: "D",
+    18: "S",
+}
+# images appended to BOOK.BMX (new letters) start here
+FIRST_NEW_IMAGE = 19
+DROP_CAP_HEADER = (
+    "book",
+    "page",
+    "letter",
+    "image",
+    "box_width",
+    "box_height",
+    "new_image",
+    "new_box_width",
+    "new_box_height",
+)
+
+
+def _page_images(page: PageData) -> list[ImageInfo]:
+    """Image records of a page in file order. The first record of a page with
+    a drop cap is the rectangle the text flows around (x, y, width, height in
+    the id/flag fields); the others are BOOK.BMX images (x, y, index, flag)."""
+    return page.decorations + page.first_letters
+
+
+def _find_drop_cap(page: PageData) -> tuple[ImageInfo, ImageInfo] | None:
+    images = _page_images(page)
+    for record in images[1:]:
+        is_letter = record.id in DROP_CAPS or record.id >= FIRST_NEW_IMAGE
+        if is_letter and record.flag == 0:
+            return images[0], record
+    return None
+
+
+@app.command(name="dropcaps-export")
+def dropcaps_export_command(bok_dir: Path, csv_path: Path) -> None:
+    """Export drop caps of all books: letter, BOOK.BMX image, text box size.
+
+    Fill new_image (index of a new BOOK.BMX image, e.g. a Cyrillic letter
+    added with `images from_png`) and optionally the new text box size.
+    """
+    rows = 0
+    with open(csv_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(DROP_CAP_HEADER)
+        for path in sorted(bok_dir.glob("*.BOK")):
+            book = Book.from_file(path)
+            for i, page in enumerate(book.pages):
+                found = _find_drop_cap(page)
+                if found is None:
+                    continue
+                box, letter = found
+                writer.writerow(
+                    (
+                        path.name,
+                        i,
+                        DROP_CAPS.get(letter.id, "?"),
+                        letter.id,
+                        box.id,
+                        box.flag,
+                    )
+                    + ("",) * 3
+                )
+                rows += 1
+    print(f"{rows} drop caps exported to {csv_path}")
+
+
+@app.command(name="dropcaps-import")
+def dropcaps_import_command(bok_dir: Path, imported_dir: Path, csv_path: Path) -> None:
+    """Apply new drop cap images and text box sizes from CSV."""
+    dropcaps_import(bok_dir, imported_dir, csv_path)
+
+
+def dropcaps_import(bok_dir: Path, imported_dir: Path, csv_path: Path) -> None:
+    with open(csv_path, encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+    by_book: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        by_book.setdefault(row["book"], []).append(row)
+    changed = 0
+    imported_dir.mkdir(parents=True, exist_ok=True)
+    for name, book_rows in by_book.items():
+        book = Book.from_file(bok_dir / name)
+        for row in book_rows:
+            found = _find_drop_cap(book.pages[int(row["page"])])
+            if found is None or found[1].id != int(row["image"]):
+                raise ValueError(f"{name} page {row['page']}: drop cap not found")
+            box, letter = found
+            if row["new_image"].strip():
+                letter.id = int(row["new_image"])
+                changed += 1
+            if row["new_box_width"].strip():
+                box.id = int(row["new_box_width"])
+            if row["new_box_height"].strip():
+                box.flag = int(row["new_box_height"])
+        book.to_file(imported_dir / name)
+    print(f"{changed} drop caps changed in {imported_dir}")
+
+
 def export_csv(bok_dir: Path, csv_path: Path) -> None:
     assert bok_dir.is_dir()
 
@@ -99,7 +211,7 @@ def import_csv(bok_dir: Path, imported_dir: Path, csv_path: Path) -> None:
             for text_block in page.text_blocks:
                 translated = strings.get(text_block.text)
                 if translated:
-                    text_block.text = encode(translated)
+                    text_block.text = translated
 
         book.to_file(imported_dir / filename)
 
@@ -153,7 +265,7 @@ class TextInfo:
     @property
     def bytes(self) -> bytes:
         assert self.text.startswith("\\i") or self.text.startswith("\\I")
-        byte_string = self.text.encode("ascii")
+        byte_string = encode(self.text)
         for placeholder, replacement in ITALICS.items():
             byte_string = byte_string.replace(placeholder.encode("ascii"), replacement)
         return byte_string
@@ -164,7 +276,7 @@ class TextInfo:
             byte_string = byte_string.replace(placeholder, replacement.encode("ascii"))
         assert b"\xf2" not in byte_string
         assert b"\xf3" not in byte_string
-        self.text = byte_string.decode("ascii")
+        self.text = decode(byte_string)
 
     def write(self, buf: FileBuffer) -> None:
         buf.put_uint8(0xF1)
@@ -290,7 +402,7 @@ class PageData:
         paragraph.bytes = bytes_buf.read()
         return paragraph, ord(char)
 
-    def write(self, buf: FileBuffer, is_last: bool) -> None:
+    def write(self, buf: FileBuffer) -> None:
         buf.put_uint16LE(self.x_pos)
         buf.put_uint16LE(self.y_pos)
         buf.put_uint16LE(self.width)
@@ -298,12 +410,10 @@ class PageData:
         buf.put_uint16LE(self.number)
         buf.put_uint16LE(self.id)
         buf.put_uint16LE(self.prev_id)
-        if is_last:
-            buf.put_uint16LE(65534)
-            buf.put_uint16LE(65535)
-        else:
-            buf.put_uint16LE(self.next_id)
-            buf.put_uint16LE(self.next_id)
+        # The "next page" fields are written as read: last pages of the original
+        # books have different values there (FFFF FFFF, 0011 0000, ...).
+        buf.write(self.skips[0])
+        buf.put_uint16LE(self.next_id)
         buf.put_uint16LE(self.flag)
         buf.put_uint16LE(len(self.decorations))
         buf.put_uint16LE(len(self.first_letters))
@@ -370,7 +480,7 @@ class Book:
                 decorations=decorations,
                 first_letters=first_letters,
                 text_blocks=text_blocks,
-                skips=skips,
+                skips=[(65534).to_bytes(2, "little"), *skips[1:]],
             )
         )
         last_page.next_id = self.pages[-1].id
@@ -386,8 +496,7 @@ class Book:
             page_offsets.append(page_offsets[-1] + page.size)
         for offset in page_offsets:
             buf.put_uint32LE(offset)
-        for i, page in enumerate(self.pages, 1):
-            is_last = i == len(self.pages)
-            page.write(buf, is_last)
+        for page in self.pages:
+            page.write(buf)
 
         buf.to_file(path)

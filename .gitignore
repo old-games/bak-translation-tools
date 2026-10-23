@@ -3,7 +3,6 @@
 !/data/README.md
 build
 dist
-.github
 venv
 .venv
 build

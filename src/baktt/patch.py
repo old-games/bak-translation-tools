@@ -5,8 +5,18 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import mkdtemp
 
-from baktt.book import import_csv
+from baktt.book import dropcaps_import, import_csv
+from baktt.dialog import import_csv as import_dialog_csv
+from baktt.exe_patch import patch_exe
+from baktt.exe_text import import_csv as import_exe_text_csv
+from baktt.images import images_from_png
+from baktt.keyword import import_csv as import_keyword_csv
+from baktt.misc import import_csv as import_misc_csv
+from baktt.mnames import import_csv as import_mnames_csv
+from baktt.objinfo import import_csv as import_objinfo_csv
+from baktt.party import import_csv as import_party_csv
 from baktt.resources import archive_resources, extract_resources
+from baktt.ui import import_csv as import_ui_csv
 
 
 class Patcher(ABC):
@@ -33,15 +43,115 @@ class BookPatcher(Patcher):
         return "Book Translations"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "BOK.csv").exists()
+        return (data_dir / "BOK.csv").exists() or (data_dir / "DROPCAPS.csv").exists()
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Applying book translations from BOK.csv...")
-
-        # Import directly into extracted_dir (patching in place)
-        import_csv(extracted_dir, extracted_dir, data_dir / "BOK.csv")
+        if (data_dir / "BOK.csv").exists():
+            print("  Applying book translations from BOK.csv...")
+            # Import directly into extracted_dir (patching in place)
+            import_csv(extracted_dir, extracted_dir, data_dir / "BOK.csv")
+        if (data_dir / "DROPCAPS.csv").exists():
+            print("  Applying drop caps from DROPCAPS.csv...")
+            dropcaps_import(extracted_dir, extracted_dir, data_dir / "DROPCAPS.csv")
         bok_files = list(extracted_dir.glob("*.BOK"))
         print(f"  ✓ Applied translations to {len(bok_files)} book files")
+
+
+class DialogPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Dialog Translations"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (data_dir / "DDX.csv").exists() or (data_dir / "LOCKS.csv").exists()
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        ddx, locks = data_dir / "DDX.csv", data_dir / "LOCKS.csv"
+        print("  Applying dialog translations from DDX.csv/LOCKS.csv...")
+        import_dialog_csv(
+            extracted_dir,
+            extracted_dir,
+            ddx if ddx.exists() else None,
+            locks if locks.exists() else None,
+        )
+
+
+class ItemNamePatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Item Names"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (data_dir / "OBJINFO.csv").exists()
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying item names from OBJINFO.csv...")
+        font = data_dir / "modified" / "GAME.FNT"
+        import_objinfo_csv(
+            extracted_dir,
+            extracted_dir,
+            data_dir / "OBJINFO.csv",
+            font if font.exists() else None,
+        )
+
+
+class KeywordPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Keywords"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (data_dir / "KEYWORD.csv").exists()
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying keywords from KEYWORD.csv...")
+        import_keyword_csv(extracted_dir, extracted_dir, data_dir / "KEYWORD.csv")
+
+
+class CombatNamePatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Combat Names"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (data_dir / "MNAMES.csv").exists()
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying combat names from MNAMES.csv...")
+        import_mnames_csv(extracted_dir, extracted_dir, data_dir / "MNAMES.csv")
+
+
+class UIPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "UI Texts"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (data_dir / "UI.csv").exists()
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying UI texts from UI.csv...")
+        # labels are measured with the Russian font, which is copied later
+        font = data_dir / "modified" / "GAME.FNT"
+        import_ui_csv(
+            extracted_dir,
+            extracted_dir,
+            data_dir / "UI.csv",
+            font if font.exists() else None,
+        )
+
+
+class MiscPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Spells and Town Names"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (data_dir / "MISC.csv").exists()
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying spells and town names from MISC.csv...")
+        import_misc_csv(extracted_dir, extracted_dir, data_dir / "MISC.csv")
 
 
 class FontPatcher(Patcher):
@@ -73,28 +183,37 @@ class ImagePatcher(Patcher):
 
     def can_apply(self, data_dir: Path) -> bool:
         modified_dir = data_dir / "modified"
-        if not modified_dir.exists():
-            return False
-        bmx_files = list(modified_dir.glob("*.BMX"))
-        scx_files = list(modified_dir.glob("*.SCX"))
-        return len(bmx_files) + len(scx_files) > 0
+        return (
+            any(modified_dir.glob("*.BMX"))
+            or any(modified_dir.glob("*.SCX"))
+            or any((data_dir / "images").glob("*.png"))
+        )
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Copying modified image files...")
+        images_dir = data_dir / "images"
+        if images_dir.exists():
+            print("  Building images from PNG files in images/...")
+            images_from_png(extracted_dir, images_dir, extracted_dir)
         modified_dir = data_dir / "modified"
-        image_files = list(modified_dir.glob("*.BMX")) + list(
-            modified_dir.glob("*.SCX")
-        )
-        for image_file in image_files:
-            dest = extracted_dir / image_file.name
-            shutil.copy2(image_file, dest)
-            print(f"    - {image_file.name}")
-        print(f"  ✓ Copied {len(image_files)} image files")
+        if modified_dir.exists():
+            image_files = list(modified_dir.glob("*.BMX")) + list(
+                modified_dir.glob("*.SCX")
+            )
+            for image_file in image_files:
+                shutil.copy2(image_file, extracted_dir / image_file.name)
+                print(f"    - {image_file.name}")
+            print(f"  ✓ Copied {len(image_files)} image files")
 
 
 # Register all patchers
 PATCHERS: list[Patcher] = [
     BookPatcher(),
+    DialogPatcher(),
+    ItemNamePatcher(),
+    KeywordPatcher(),
+    CombatNamePatcher(),
+    UIPatcher(),
+    MiscPatcher(),
     FontPatcher(),
     ImagePatcher(),
 ]
@@ -178,8 +297,28 @@ def patch_game(
         if rmf_path is None:
             raise ValueError("Invalid game ZIP: missing krondor.rmf in krondor/ folder")
 
+        exe_path = _find_case_insensitive_entry(krondor_dir, "krondor.exe")
+        if exe_path is None:
+            raise ValueError("Invalid game ZIP: missing krondor.exe in krondor/ folder")
+
         print("✓ Validated game structure")
         print()
+
+        print("Patching KRONDOR.EXE (characters 0x80+)...")
+        patch_exe(exe_path)
+        if (data_dir / "EXE.csv").exists():
+            print("Applying EXE texts from EXE.csv...")
+            import_exe_text_csv(exe_path, data_dir / "EXE.csv")
+        print()
+
+        party_csv = data_dir / "PARTY.csv"
+        if party_csv.exists():
+            startup_path = _find_case_insensitive_entry(krondor_dir, "startup.gam")
+            if startup_path is None:
+                raise ValueError("Invalid game ZIP: missing startup.gam")
+            print("Applying party member names from PARTY.csv...")
+            import_party_csv(startup_path, party_csv)
+            print()
 
         # Extract game resources
         temp_resources = Path(mkdtemp(prefix="bak_patch_resources_"))
