@@ -10,6 +10,7 @@ of text plus a `.keys.csv` with the key and the full original of every row.
 `sp import` reads an XLSX exported from the system, matches the rows by order
 (checking the original) and writes the CSV back, restoring the leading and
 trailing whitespace of the original (e.g. the paragraph tab of dialogs).
+Rows deleted in the system (its export skips them) stay untranslated.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ app = App(name="sp", help="Exchange with the old-games.ru translation system (XL
 # CSV files of export-all that go to the system (DROPCAPS.csv is for artists)
 TEXT_FILES = [
     "DDX.csv",
+    "LOCKS.csv",
     "BOK.csv",
     "OBJINFO.csv",
     "KEYWORD.csv",
@@ -121,13 +123,17 @@ def sp_import(xlsx_path: Path, keys_path: Path, csv_path: Path) -> None:
     while cells and cells[-1] == ("", ""):
         cells.pop()
     errors = []
-    if len(cells) != len(keys):
-        errors.append(f"{xlsx_path}: {len(cells)} rows, {keys_path} has {len(keys)}")
     rows = []
-    for (row, key, english), (original, russian) in zip(keys, cells, strict=False):
-        if _normalize(original) != _normalize(english):
-            errors.append(f"row {row} ({key}): the original differs from the game text")
+    missing = []
+    cell = 0
+    for row, key, english in keys:
+        if cell >= len(cells) or _normalize(cells[cell][0]) != _normalize(english):
+            # deleted in the system: not in its export
+            missing.append(row)
+            rows.append((key, english, ""))
             continue
+        russian = cells[cell][1]
+        cell += 1
         russian = russian.replace("\r\n", "\n").strip()
         if russian:
             # restore the whitespace the system trims (paragraph tab, newlines)
@@ -135,6 +141,15 @@ def sp_import(xlsx_path: Path, keys_path: Path, csv_path: Path) -> None:
             start = english.index(body[:1]) if body else 0
             russian = english[:start] + russian + english[start + len(body) :]
         rows.append((key, english, russian))
+    if cell < len(cells):
+        errors.append(
+            f"{xlsx_path}: row {cell + 1} does not match {keys_path} "
+            f"(the original differs from the game text or the order is changed)"
+        )
+    elif missing:
+        print(
+            f"{len(missing)} rows are not in {xlsx_path} (deleted), e.g. {missing[:5]}"
+        )
     for error in errors[:20]:
         print("ERROR", error)
     if errors:

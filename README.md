@@ -34,7 +34,7 @@ the developers of the `xbak` port.
 * `uv run baktt resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
 * `uv run baktt fonts` - Operations on the font files (.FNT)
 * `uv run baktt book` - Operations on the book files (.BOK): texts, drop caps (`dropcaps-export`/`dropcaps-import`)
-* `uv run baktt dialog` - Operations on the dialog files (.DDX): export texts to CSV, build translated files
+* `uv run baktt dialog` - Operations on the dialog files (.DDX): export texts to CSV (`--locks`: word lock riddles and answers to a separate CSV, the wheels are generated on import), build translated files
 * `uv run baktt objinfo` - Item names (OBJINFO.DAT): export to CSV, import a translation
 * `uv run baktt keyword` - Dialog topics, answer buttons and NPC names (KEYWORD.DAT)
 * `uv run baktt mnames` - Combat names: monsters and party members (MNAMES.DAT)

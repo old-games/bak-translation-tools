@@ -63,11 +63,17 @@ class DialogPatcher(Patcher):
         return "Dialog Translations"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "DDX.csv").exists()
+        return (data_dir / "DDX.csv").exists() or (data_dir / "LOCKS.csv").exists()
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Applying dialog translations from DDX.csv...")
-        import_dialog_csv(extracted_dir, extracted_dir, data_dir / "DDX.csv")
+        ddx, locks = data_dir / "DDX.csv", data_dir / "LOCKS.csv"
+        print("  Applying dialog translations from DDX.csv/LOCKS.csv...")
+        import_dialog_csv(
+            extracted_dir,
+            extracted_dir,
+            ddx if ddx.exists() else None,
+            locks if locks.exists() else None,
+        )
 
 
 class ItemNamePatcher(Patcher):

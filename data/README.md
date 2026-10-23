@@ -14,7 +14,7 @@ Book translations in CSV format with two columns (original text, translated text
 
 Used by: BookPatcher
 
-### `DDX.csv`
+### `DDX.csv`, `LOCKS.csv`
 
 Dialog translations exported with `baktt dialog export` (columns `key`,
 `english`, `russian`). Rows with an empty `russian` column keep the original
@@ -22,21 +22,14 @@ text. Markup: `{F0}`..`{F4}` (style of the next word), `{E1}text{/E1}` (styled
 text, the byte is repeated before every character), `{XX}` (any other byte),
 `#Name#` at the start of a snippet is the speaker label.
 
-Word locks (chests opened by a word, 152 snippets of `DIAL_Z17`) have their
-own format, checked on import:
-
-```
-ANSWER
-#
-WHEEL ROW 1        <- one row per wheel position, each as long as the answer;
-WHEEL ROW 2           column i holds the letters of wheel i and must contain
-...                   the answer letter; spaces stay in the same columns
-#
-Riddle text
-```
-
-The answer and the rows: capital letters, digits and spaces only, at most 11
-characters, the same number of rows as in the original (4, 8 or 10).
+Word locks (chests opened by a word, 152 snippets of `DIAL_Z17`) are not in
+`DDX.csv`: they are in `LOCKS.csv`, two rows per lock - the riddle
+(`DIAL_Z17:<offset>:riddle`) and the answer (`...:answer`). The answer: capital
+letters, digits and spaces, at most 11 characters (lowercase letters are made
+capital). The letters on the wheels are generated on import: every wheel gets
+the answer letter and random letters, as many rows as in the original; an
+unchanged answer keeps the original wheels. An empty row keeps the original
+riddle or answer.
 
 Used by: DialogPatcher
 

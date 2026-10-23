@@ -25,6 +25,7 @@ Text markup in CSV:
 from __future__ import annotations
 
 import csv
+import random
 import re
 import struct
 from dataclasses import dataclass, field
@@ -179,6 +180,15 @@ class DialogFile:
 # PUZZLE.FNT (or ALIEN.FNT for moredhel chests).
 WORDLOCK_MAX_LENGTH = 11  # the longest answer in the original game
 
+# For translation a lock is exported as two rows (LOCKS.csv): the riddle and the
+# answer, keyed "<snippet key>:riddle" / ":answer". The wheel rows of a
+# translated answer are generated: the answer letter and random letters on
+# every wheel, as many rows as in the original.
+LOCK_PARTS = ("riddle", "answer")
+WHEEL_LETTERS = "АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЭЮЯ"
+WHEEL_LATIN = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+WHEEL_DIGITS = "1234567890"  # the order of the original digit wheels
+
 
 def parse_wordlock(text: str) -> tuple[str, list[str], str] | None:
     parts = text.split("\n#")
@@ -225,6 +235,57 @@ def check_wordlock(russian: str, english: str) -> list[str]:
                     f"word lock: answer letter {letter!r} is not on wheel {i + 1}"
                 )
     return problems
+
+
+def make_wheels(answer: str, n_rows: int, seed: str) -> list[str]:
+    """Wheel rows for `answer`: every wheel has the answer letter and random
+    letters of the same kind (digit wheels are sorted, as in the original)."""
+    rng = random.Random(f"{seed}:{answer}")
+    columns = []
+    for letter in answer:
+        if letter == " ":
+            columns.append(" " * n_rows)
+            continue
+        if letter in WHEEL_DIGITS:
+            pool = WHEEL_DIGITS
+        elif letter in WHEEL_LATIN:
+            pool = WHEEL_LATIN
+        else:
+            pool = WHEEL_LETTERS
+        wheel = rng.sample([c for c in pool if c != letter], n_rows - 1)
+        if letter in WHEEL_DIGITS:
+            wheel = sorted([*wheel, letter], key=WHEEL_DIGITS.index)
+        else:
+            wheel.insert(rng.randrange(n_rows), letter)
+        columns.append("".join(wheel))
+    return ["".join(column[row] for column in columns) for row in range(n_rows)]
+
+
+def build_wordlock(key: str, english: str, riddle: str, answer: str) -> str:
+    """Full lock text from the translated riddle and answer (empty = original);
+    the wheels are kept if the answer is not changed."""
+    lock = parse_wordlock(english)
+    assert lock is not None
+    english_answer, english_rows, english_riddle = lock
+    answer = answer.strip().upper() or english_answer
+    rows = (
+        english_rows
+        if answer == english_answer
+        else make_wheels(answer, len(english_rows), key)
+    )
+    riddle = riddle.strip() or english_riddle.removeprefix("\n")
+    return "\n#\n".join((answer, "\n".join(rows), riddle))
+
+
+def load_lock_translations(csv_path: Path) -> dict[str, dict[str, str]]:
+    """{snippet key: {"riddle": russian, "answer": russian}} from LOCKS.csv."""
+    locks: dict[str, dict[str, str]] = {}
+    for key, (_english, russian) in load_translations(csv_path).items():
+        snippet_key, part = key.rsplit(":", 1)
+        if part not in LOCK_PARTS:
+            raise ValueError(f"{csv_path}: unexpected key {key}")
+        locks.setdefault(snippet_key, {})[part] = russian
+    return locks
 
 
 # --- text <-> markup -----------------------------------------------------------
@@ -308,31 +369,55 @@ def _key(path: Path, offset: int) -> str:
 
 
 @app.command(name="export")
-def export_command(ddx_dir: Path, csv_path: Path) -> None:
-    """Export texts of all DDX files to CSV (key, english, russian)."""
-    export_csv(ddx_dir, csv_path)
+def export_command(ddx_dir: Path, csv_path: Path, *, locks: Path | None = None) -> None:
+    """Export texts of all DDX files to CSV (key, english, russian).
+
+    With --locks the word locks go to a separate CSV, two rows per lock (the
+    riddle and the answer) instead of the full lock text.
+    """
+    export_csv(ddx_dir, csv_path, locks)
 
 
 @app.command(name="import")
-def import_command(ddx_dir: Path, imported_dir: Path, csv_path: Path) -> None:
-    """Build DDX files with the translation from CSV (empty = keep original)."""
-    import_csv(ddx_dir, imported_dir, csv_path)
+def import_command(
+    ddx_dir: Path, imported_dir: Path, csv_path: Path, *, locks: Path | None = None
+) -> None:
+    """Build DDX files with the translation from CSV (empty = keep original).
+
+    --locks: the word lock CSV (riddle and answer rows); the wheels of a
+    translated answer are generated.
+    """
+    import_csv(ddx_dir, imported_dir, csv_path, locks)
 
 
-def export_csv(ddx_dir: Path, csv_path: Path) -> None:
-    rows = 0
+def export_csv(ddx_dir: Path, csv_path: Path, locks_path: Path | None = None) -> None:
+    rows: list[tuple[str, str, str]] = []
+    lock_rows: list[tuple[str, str, str]] = []
+    for path in _dialog_files(ddx_dir):
+        dialog = DialogFile.from_file(path)
+        for offset, snippet in dialog.snippets.items():
+            if not snippet.text:
+                continue
+            key, text = _key(path, offset), text_to_markup(snippet.text)
+            lock = parse_wordlock(text) if locks_path else None
+            if lock is None:
+                rows.append((key, text, ""))
+            else:
+                answer, _rows, riddle = lock
+                lock_rows.append((f"{key}:riddle", riddle.removeprefix("\n"), ""))
+                lock_rows.append((f"{key}:answer", answer, ""))
+    _write_csv(csv_path, rows)
+    print(f"{len(rows)} strings exported to {csv_path}")
+    if locks_path:
+        _write_csv(locks_path, lock_rows)
+        print(f"{len(lock_rows) // 2} word locks exported to {locks_path}")
+
+
+def _write_csv(csv_path: Path, rows: list[tuple[str, str, str]]) -> None:
     with open(csv_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(CSV_HEADER)
-        for path in _dialog_files(ddx_dir):
-            dialog = DialogFile.from_file(path)
-            for offset, snippet in dialog.snippets.items():
-                if snippet.text:
-                    writer.writerow(
-                        (_key(path, offset), text_to_markup(snippet.text), "")
-                    )
-                    rows += 1
-    print(f"{rows} strings exported to {csv_path}")
+        writer.writerows(rows)
 
 
 def load_translations(csv_path: Path) -> dict[str, tuple[str, str]]:
@@ -344,8 +429,14 @@ def load_translations(csv_path: Path) -> dict[str, tuple[str, str]]:
         return {row[0]: (row[1], row[2]) for row in reader if row and row[0]}
 
 
-def import_csv(ddx_dir: Path, imported_dir: Path, csv_path: Path) -> None:
-    translations = load_translations(csv_path)
+def import_csv(
+    ddx_dir: Path,
+    imported_dir: Path,
+    csv_path: Path | None,
+    locks_path: Path | None = None,
+) -> None:
+    translations = load_translations(csv_path) if csv_path else {}
+    locks = load_lock_translations(locks_path) if locks_path else {}
     imported_dir.mkdir(parents=True, exist_ok=True)
     used = 0
     errors: list[str] = []
@@ -353,6 +444,20 @@ def import_csv(ddx_dir: Path, imported_dir: Path, csv_path: Path) -> None:
         dialog = DialogFile.from_file(path)
         for offset, snippet in dialog.snippets.items():
             key = _key(path, offset)
+            if key in locks:
+                english = text_to_markup(snippet.text)
+                if not parse_wordlock(english):
+                    errors.append(f"{key}: not a word lock in the game file")
+                    continue
+                parts = locks.pop(key)
+                if not any(text.strip() for text in parts.values()):
+                    continue
+                translations[key] = (
+                    english,
+                    build_wordlock(
+                        key, english, parts.get("riddle", ""), parts.get("answer", "")
+                    ),
+                )
             if key not in translations:
                 continue
             english, russian = translations[key]
@@ -382,6 +487,7 @@ def import_csv(ddx_dir: Path, imported_dir: Path, csv_path: Path) -> None:
             snippet.text = text
             used += 1
         (imported_dir / path.name).write_bytes(dialog.to_bytes())
+    errors.extend(f"{key}: no such snippet" for key in locks)
     for error in errors:
         print("ERROR", error)
     if errors:

@@ -27,9 +27,9 @@ def export_all(
 
     `game_dir` must contain KRONDOR.EXE, krondor.rmf, krondor.001 and
     startup.gam (version 1.02). Creates in `out_dir`: one CSV per kind of
-    text (key, english, russian[, note]), DROPCAPS.csv, images/ with PNGs of
-    the images with text (all images with --all-images) and README.md with
-    the rules for translators.
+    text (key, english, russian[, note]; word locks in LOCKS.csv),
+    DROPCAPS.csv, images/ with PNGs of the images with text (all images with
+    --all-images) and README.md with the rules for translators.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     exe = _find(game_dir, "krondor.exe")
@@ -42,7 +42,7 @@ def export_all(
         print(f"Extracting resources from {rmf}...")
         extract_resources(rmf, extracted)
 
-        dialog.export_csv(extracted, out_dir / "DDX.csv")
+        dialog.export_csv(extracted, out_dir / "DDX.csv", out_dir / "LOCKS.csv")
         book.export_csv(extracted, out_dir / "BOK.csv")
         objinfo.export_command(extracted, out_dir / "OBJINFO.csv")
         keyword.export_command(extracted, out_dir / "KEYWORD.csv")
