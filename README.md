@@ -2,10 +2,11 @@
 
 **Development moved to <https://github.com/old-games/bak-translation-tools>**
 
-This project is a set of tools for manipulating the resources
-of the Betrayal at Krondor video game to enable translation of the game to
-different languages (it was created to make a Russian translation, but may
-be used for other languages).
+This project is a set of tools for translating the Betrayal at Krondor video
+game. It is made for the Russian translation: reading and rebuilding the game
+resources, the EXE patches and the checks do not depend on the language, but
+the encoding, word locks, money plurals and the notes for translators are
+Russian (see [Other Languages](#other-languages)).
 
 The project is not affiliated with the original authors of Betrayal at Krondor, nor
 the developers of the `xbak` port.
@@ -52,9 +53,11 @@ pass another folder as `just game=/path/to/krondor <task>`.
 * `uv run baktt ui` - Buttons and labels (REQ_*.DAT, LBL_*.DAT used by the game)
 * `uv run baktt misc` - Spell names and descriptions, town names on the map (SPELLS.DAT, SPELLDOC.DAT, INVSPELL.DAT, FMAP_TWN.DAT)
 * `uv run baktt images` - Operations on the image files (.PAL, .SCX, .BMX): export to PNG (`text_images_to_png` - only the images with text), build from edited PNGs (`from_png`)
-* `uv run baktt exe` - Patch `KRONDOR.EXE` so that font characters 0x80+ can be used
+* `uv run baktt exe` - Patch `KRONDOR.EXE`: font characters 0x80+, endings right after `@` (hero names), wider dialog topic buttons
 * `uv run baktt exe-text` - Texts in `KRONDOR.EXE` (in place; longer DGROUP strings are moved to an extended DGROUP)
 * `uv run baktt patch-game` - Create a translated game archive (see `data/README.md`)
+
+Use `--help` flag to see the available options.
 
 ## Russian Text Encoding
 
@@ -67,7 +70,32 @@ automatically). Supported version: 1.02.
 Russian fonts must have Cyrillic glyphs at 0x80..0xC2 too; edit them with the
 font editor (characters are labeled in this encoding).
 
-Use `--help` flag to see the available options.
+## Other Languages
+
+Everything that is specific to Russian, to change for another language:
+
+* `src/baktt/encoding.py` - the character map (`CHARMAP`) and the typography
+  replacements (`TYPOGRAPHY`). Free codes are 0x80..0xDF: 0xE0..0xFF are control
+  codes of the game's text renderer. Keep a lowercase letter at its uppercase
+  code + 0x20: `toupper`/`tolower` in `KRONDOR.EXE` just add/subtract 0x20.
+  The font editor labels the characters with this map.
+* Fonts in `data/fonts/` - glyphs at the codes of the map; `ALIEN.FNT` (the
+  runes of the Moredhel chests) needs a rune for every letter of the alphabet.
+* Word locks in `src/baktt/dialog.py` - the wheel letters (`WHEEL_LETTERS`)
+  and the characters allowed in an answer (`check_wordlock`).
+* Money plurals - `src/baktt/asm/money.asm` chooses one of three forms by the
+  Russian rule (1, 21, 31... / 2-4, 22-24... / the rest), the forms are the
+  `EXE:MONEY:*` rows. The same rule fits e.g. Serbian and Bosnian; any other
+  language needs a change in the assembly code (in English or German 21 takes
+  the plural, in Polish only 1 takes the singular). Without the `EXE:MONEY:*`
+  rows the game keeps its English plurals ("s").
+* Notes for translators - Russian strings in the `export` code of `book`,
+  `dialog`, `objinfo`, `keyword`, `ui`, `mnames`, `misc`, `party` and `exe_text`
+  (e.g. how to decline hero names after `@`).
+
+The resource formats, the rebuilding of the files, moving EXE strings to the
+extended DGROUP, the EXE patches, the width and length checks and the tables
+of the translation system are the same for any language.
 
 ## The Font Editor
 
