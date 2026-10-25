@@ -199,7 +199,7 @@ def import_command(
     """Build UI files with the translation from a table (empty = keep original).
 
     Button labels are measured with `font` (default: GAME.FNT from src_dir);
-    pass the Russian font, e.g. data/modified/GAME.FNT.
+    pass the Russian font, e.g. data/fonts/GAME.FNT.
     """
     import_table(src_dir, imported_dir, table_path, font)
 

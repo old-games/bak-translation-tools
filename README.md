@@ -27,6 +27,17 @@ the developers of the `xbak` port.
 2. Install dependencies: `uv pip install -e . --python .venv/bin/python`
    * On Windows use `--python .venv\Scripts\python.exe`
 
+## Common Tasks
+
+`just --list` shows them all; the installed game (1.02) is expected in `./game`,
+pass another folder as `just game=/path/to/krondor <task>`.
+
+* `just export-all [out] [format]` - export everything to translate (default: `./translation`, xlsx)
+* `just patch-game` - build the translated game from the tables, fonts and images in `data/` -> `data/krondor-ru.zip`
+* `just play` - build and run it in DOSBox-X (`DOSBOX=/path/to/dosbox just play` for another executable)
+* `just extract` - extract the game resources to `data/extracted` for manual `export`/`import`
+* `just font-editor`, `just lint`
+
 ## Command Line Tools
 
 * `uv run baktt export-all <game dir> <out dir>` - Export everything to translate from an installed game (1.02): one table per kind of text (`--format xlsx` for the old-games.ru translation system, `csv` for tests; columns: original, translation, key, note - see `data/README.md`), DROPCAPS.csv, the images with text as PNG (`--all-images` for all), README with the rules

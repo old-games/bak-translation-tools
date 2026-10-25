@@ -2,7 +2,7 @@
 
 This folder contains translation source files used by the `baktt patch-game` command.
 
-**Copyright Notice:** All files in this folder (except this README.md) are git-ignored due to copyright protection.
+**Copyright Notice:** All files in this folder (except this README.md and the Russian fonts in `fonts/`) are git-ignored due to copyright protection.
 
 ## Translation tables
 
@@ -102,12 +102,19 @@ new letter.
 
 Used by: BookPatcher
 
+### `fonts/`
+
+The Russian fonts (`GAME.FNT`, `BOOK.FNT`, `PUZZLE.FNT`, `ALIEN.FNT`) with
+Cyrillic at 0x80+ (see `src/baktt/encoding.py`). Unlike the rest of this
+folder they are kept in git. Edit them with the font editor.
+
+Used by: FontPatcher (copied into the game), and to check the width of button
+labels, dialog topics and EXE labels on import (`GAME.FNT`)
+
 ### `modified/`
 
 Folder containing modified game resource files:
 
-- `*.FNT` - Modified font files (e.g., `BOOK.FNT`, `GAME.FNT`)
-  - Used by: FontPatcher
 - `*.BMX` - Modified bitmap image files (e.g., `PUZZLE.BMX`)
   - Used by: ImagePatcher
 - `*.SCX` - Modified screen image files (e.g., `C11.SCX`)

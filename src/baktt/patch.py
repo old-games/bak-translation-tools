@@ -20,6 +20,9 @@ from baktt.resources import archive_resources, extract_resources
 from baktt.table import find_table
 from baktt.ui import import_table as import_ui_table
 
+# the Russian fonts (*.FNT) in the data directory, kept in git
+FONTS_DIR = "fonts"
+
 
 class Patcher(ABC):
     @abstractmethod
@@ -89,7 +92,7 @@ class ItemNamePatcher(Patcher):
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
         print("  Applying item names from OBJINFO...")
-        font = data_dir / "modified" / "GAME.FNT"
+        font = data_dir / FONTS_DIR / "GAME.FNT"
         import_objinfo_table(
             extracted_dir,
             extracted_dir,
@@ -108,7 +111,7 @@ class KeywordPatcher(Patcher):
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
         print("  Applying keywords from KEYWORD...")
-        font = data_dir / "modified" / "GAME.FNT"
+        font = data_dir / FONTS_DIR / "GAME.FNT"
         import_keyword_table(
             extracted_dir,
             extracted_dir,
@@ -143,7 +146,7 @@ class UIPatcher(Patcher):
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
         print("  Applying UI texts from UI...")
         # labels are measured with the Russian font, which is copied later
-        font = data_dir / "modified" / "GAME.FNT"
+        font = data_dir / FONTS_DIR / "GAME.FNT"
         import_ui_table(
             extracted_dir,
             extracted_dir,
@@ -171,15 +174,11 @@ class FontPatcher(Patcher):
         return "Font Files"
 
     def can_apply(self, data_dir: Path) -> bool:
-        modified_dir = data_dir / "modified"
-        if not modified_dir.exists():
-            return False
-        return len(list(modified_dir.glob("*.FNT"))) > 0
+        return any((data_dir / FONTS_DIR).glob("*.FNT"))
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Copying modified font files...")
-        modified_dir = data_dir / "modified"
-        font_files = list(modified_dir.glob("*.FNT"))
+        print(f"  Copying font files from {FONTS_DIR}/...")
+        font_files = sorted((data_dir / FONTS_DIR).glob("*.FNT"))
         for font_file in font_files:
             dest = extracted_dir / font_file.name
             shutil.copy2(font_file, dest)
@@ -319,7 +318,7 @@ def patch_game(
         patch_exe(exe_path)
         if find_table(data_dir, "EXE") is not None:
             print("Applying EXE texts...")
-            font = data_dir / "modified" / "GAME.FNT"
+            font = data_dir / FONTS_DIR / "GAME.FNT"
             import_exe_text_table(
                 exe_path, find_table(data_dir, "EXE"), font if font.exists() else None
             )

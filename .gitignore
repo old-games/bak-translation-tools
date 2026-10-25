@@ -1,6 +1,9 @@
 .direnv
-/data
+/data/*
 !/data/README.md
+!/data/fonts/
+/game
+/translation
 build
 dist
 venv
@@ -11,3 +14,4 @@ __pycache__
 *.spec
 *.pyd
 .vs
+*.egg-info
