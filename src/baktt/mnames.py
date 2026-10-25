@@ -8,14 +8,13 @@ relocated.
 
 from __future__ import annotations
 
-import csv
 import struct
 from pathlib import Path
 
 from cyclopts import App
 
-from baktt.dialog import CSV_HEADER, load_translations
 from baktt.encoding import decode, encode
+from baktt.table import Row, load_translations, write_table
 
 app = App(name="mnames", help="Operations on combat names (MNAMES.DAT)")
 
@@ -69,28 +68,31 @@ def _key(index: int) -> str:
     return f"MNAMES:{index:03d}"
 
 
+# the name is substituted for @1 in the dialogs before a fight (BaKGL: text
+# variable 16, the current monster)
+NOTE = "Подставляется в реплики перед боем вместо @1, только в именительном падеже."
+
+
 @app.command(name="export")
-def export_command(src_dir: Path, csv_path: Path) -> None:
-    """Export combat names to CSV (key, english, russian)."""
+def export_command(src_dir: Path, table_path: Path) -> None:
+    """Export monster names to a table (.xlsx or .csv)."""
     names = MonsterNames((src_dir / FILENAME).read_bytes())
-    rows = names.rows()
-    with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
-        for i, offset in rows:
-            writer.writerow((_key(i), decode(names.strings[offset]), ""))
-    print(f"{len(rows)} names exported to {csv_path}")
+    rows = [
+        Row(_key(i), decode(names.strings[offset]), note=NOTE)
+        for i, offset in names.rows()
+    ]
+    print(f"{write_table(table_path, rows)} names exported to {table_path}")
 
 
 @app.command(name="import")
-def import_command(src_dir: Path, imported_dir: Path, csv_path: Path) -> None:
-    """Build MNAMES.DAT with the translation from CSV (empty = keep original)."""
-    import_csv(src_dir, imported_dir, csv_path)
+def import_command(src_dir: Path, imported_dir: Path, table_path: Path) -> None:
+    """Build MNAMES.DAT with the translation from a table (empty = keep original)."""
+    import_table(src_dir, imported_dir, table_path)
 
 
-def import_csv(src_dir: Path, imported_dir: Path, csv_path: Path) -> None:
+def import_table(src_dir: Path, imported_dir: Path, table_path: Path) -> None:
     names = MonsterNames((src_dir / FILENAME).read_bytes())
-    translations = load_translations(csv_path)
+    translations = load_translations(table_path)
     errors: list[str] = []
     used = 0
     for i, offset in names.rows():

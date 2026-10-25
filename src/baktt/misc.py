@@ -19,14 +19,13 @@ records are keyed by record number.
 
 from __future__ import annotations
 
-import csv
 import struct
 from pathlib import Path
 
 from cyclopts import App
 
-from baktt.dialog import CSV_HEADER, load_translations
 from baktt.encoding import decode, encode
+from baktt.table import Row, load_translations, write_table
 
 app = App(
     name="misc", help="Spell names and descriptions, town names on the map, credits"
@@ -149,30 +148,30 @@ def _key(filename: str, index: int) -> str:
     return f"{Path(filename).stem}:{index:04d}"
 
 
+NOTES = {"INVSPELL.DAT": "Не длиннее 23 знаков."}
+
+
 @app.command(name="export")
-def export_command(src_dir: Path, csv_path: Path) -> None:
-    """Export spell names, spell descriptions and town names to CSV."""
-    rows = 0
-    with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
-        for name, loader in LOADERS.items():
-            file = loader((src_dir / name).read_bytes())
-            for index, text in file.texts.items():
-                if text:
-                    writer.writerow((_key(name, index), decode(text), ""))
-                    rows += 1
-    print(f"{rows} strings exported to {csv_path}")
+def export_command(src_dir: Path, table_path: Path) -> None:
+    """Export spells, town names and credits to a table (.xlsx or .csv)."""
+    rows = []
+    for name, loader in LOADERS.items():
+        file = loader((src_dir / name).read_bytes())
+        note = NOTES.get(name, "")
+        for index, text in file.texts.items():
+            if text:
+                rows.append(Row(_key(name, index), decode(text), note=note))
+    print(f"{write_table(table_path, rows)} strings exported to {table_path}")
 
 
 @app.command(name="import")
-def import_command(src_dir: Path, imported_dir: Path, csv_path: Path) -> None:
-    """Build the files with the translation from CSV (empty = keep original)."""
-    import_csv(src_dir, imported_dir, csv_path)
+def import_command(src_dir: Path, imported_dir: Path, table_path: Path) -> None:
+    """Build the files with the translation from a table (empty = keep original)."""
+    import_table(src_dir, imported_dir, table_path)
 
 
-def import_csv(src_dir: Path, imported_dir: Path, csv_path: Path) -> None:
-    translations = load_translations(csv_path)
+def import_table(src_dir: Path, imported_dir: Path, table_path: Path) -> None:
+    translations = load_translations(table_path)
     errors: list[str] = []
     used = 0
     imported_dir.mkdir(parents=True, exist_ok=True)

@@ -19,15 +19,14 @@ minus BUTTON_PADDING (the smallest margin of the original labels is 5 px).
 
 from __future__ import annotations
 
-import csv
 import struct
 from pathlib import Path
 
 from cyclopts import App
 
-from baktt.dialog import CSV_HEADER, load_translations
 from baktt.encoding import decode, encode
 from baktt.fonts import Font
+from baktt.table import Row, load_translations, write_table
 
 app = App(name="ui", help="Operations on UI texts (REQ_*.DAT, LBL_*.DAT, IN_SAVE.DAT)")
 
@@ -170,50 +169,46 @@ def _key(filename: str, offset: int) -> str:
 
 
 @app.command(name="export")
-def export_command(src_dir: Path, csv_path: Path) -> None:
-    """Export texts of the UI files used by the game to CSV.
+def export_command(src_dir: Path, table_path: Path) -> None:
+    """Export texts of the UI files used by the game to a table (.xlsx or .csv).
 
-    The fourth column is a hint for translators: the maximum label width and
-    the width of the English text, in pixels.
+    The note of a button label: the maximum width and the width of the English
+    text, in pixels.
     """
     font = Font.from_file(src_dir / FONT)
-    rows = 0
-    with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow((*CSV_HEADER, "note"))
-        for name in USED_FILES:
-            ui = UIFile(name, (src_dir / name).read_bytes())
-            for offset, text in ui.strings.items():
-                if not text:
-                    continue
-                note = ""
-                if offset in ui.max_widths:
-                    note = (
-                        f"max {ui.max_widths[offset]} px, "
-                        f"english {text_width(font, text)} px"
-                    )
-                writer.writerow((_key(name, offset), decode(text), "", note))
-                rows += 1
-    print(f"{rows} UI strings exported to {csv_path}")
+    rows = []
+    for name in USED_FILES:
+        ui = UIFile(name, (src_dir / name).read_bytes())
+        for offset, text in ui.strings.items():
+            if not text:
+                continue
+            note = ""
+            if offset in ui.max_widths:
+                note = (
+                    f"Не шире {ui.max_widths[offset]} px (английский — "
+                    f"{text_width(font, text)} px): кнопка не растягивается."
+                )
+            rows.append(Row(_key(name, offset), decode(text), note=note))
+    print(f"{write_table(table_path, rows)} UI strings exported to {table_path}")
 
 
 @app.command(name="import")
 def import_command(
-    src_dir: Path, imported_dir: Path, csv_path: Path, font: Path | None = None
+    src_dir: Path, imported_dir: Path, table_path: Path, font: Path | None = None
 ) -> None:
-    """Build UI files with the translation from CSV (empty = keep original).
+    """Build UI files with the translation from a table (empty = keep original).
 
     Button labels are measured with `font` (default: GAME.FNT from src_dir);
     pass the Russian font, e.g. data/modified/GAME.FNT.
     """
-    import_csv(src_dir, imported_dir, csv_path, font)
+    import_table(src_dir, imported_dir, table_path, font)
 
 
-def import_csv(
-    src_dir: Path, imported_dir: Path, csv_path: Path, font_path: Path | None = None
+def import_table(
+    src_dir: Path, imported_dir: Path, table_path: Path, font_path: Path | None = None
 ) -> None:
     font = Font.from_file(font_path or src_dir / FONT)
-    translations = load_translations(csv_path)
+    translations = load_translations(table_path)
     files = sorted({key.split(":")[0] + ".DAT" for key in translations})
     errors: list[str] = []
     used = 0

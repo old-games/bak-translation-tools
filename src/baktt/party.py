@@ -7,13 +7,12 @@ in dialogs and item descriptions. Combat names are in MNAMES.DAT.
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 from cyclopts import App
 
-from baktt.dialog import CSV_HEADER, load_translations
 from baktt.encoding import decode, encode
+from baktt.table import Row, load_translations, write_table
 
 app = App(name="party", help="Party member names in STARTUP.GAM")
 
@@ -40,27 +39,25 @@ def _key(index: int) -> str:
 
 
 @app.command(name="export")
-def export_command(startup_gam: Path, csv_path: Path) -> None:
-    """Export party member names to CSV (key, english, russian)."""
+def export_command(startup_gam: Path, table_path: Path) -> None:
+    """Export party member names to a table (.xlsx or .csv)."""
     names = read_names(startup_gam.read_bytes())
-    with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
-        for i, name in enumerate(names):
-            writer.writerow((_key(i), name, ""))
-    print(f"{len(names)} names exported to {csv_path}")
+    rows = [
+        Row(_key(i), name, note="Не длиннее 9 знаков.") for i, name in enumerate(names)
+    ]
+    print(f"{write_table(table_path, rows)} names exported to {table_path}")
 
 
 @app.command(name="import")
-def import_command(startup_gam: Path, csv_path: Path) -> None:
+def import_command(startup_gam: Path, table_path: Path) -> None:
     """Write translated party member names into STARTUP.GAM in place."""
-    import_csv(startup_gam, csv_path)
+    import_table(startup_gam, table_path)
 
 
-def import_csv(startup_gam: Path, csv_path: Path) -> None:
+def import_table(startup_gam: Path, table_path: Path) -> None:
     data = bytearray(startup_gam.read_bytes())
     names = read_names(bytes(data))
-    translations = load_translations(csv_path)
+    translations = load_translations(table_path)
     errors: list[str] = []
     used = 0
     for i, name in enumerate(names):

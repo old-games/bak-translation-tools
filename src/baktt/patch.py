@@ -5,18 +5,20 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import mkdtemp
 
-from baktt.book import dropcaps_import, import_csv
-from baktt.dialog import import_csv as import_dialog_csv
+from baktt.book import dropcaps_import
+from baktt.book import import_table as import_book_table
+from baktt.dialog import import_table as import_dialog_table
 from baktt.exe_patch import patch_exe
-from baktt.exe_text import import_csv as import_exe_text_csv
+from baktt.exe_text import import_table as import_exe_text_table
 from baktt.images import images_from_png
-from baktt.keyword import import_csv as import_keyword_csv
-from baktt.misc import import_csv as import_misc_csv
-from baktt.mnames import import_csv as import_mnames_csv
-from baktt.objinfo import import_csv as import_objinfo_csv
-from baktt.party import import_csv as import_party_csv
+from baktt.keyword import import_table as import_keyword_table
+from baktt.misc import import_table as import_misc_table
+from baktt.mnames import import_table as import_mnames_table
+from baktt.objinfo import import_table as import_objinfo_table
+from baktt.party import import_table as import_party_table
 from baktt.resources import archive_resources, extract_resources
-from baktt.ui import import_csv as import_ui_csv
+from baktt.table import find_table
+from baktt.ui import import_table as import_ui_table
 
 
 class Patcher(ABC):
@@ -43,13 +45,16 @@ class BookPatcher(Patcher):
         return "Book Translations"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "BOK.csv").exists() or (data_dir / "DROPCAPS.csv").exists()
+        return (
+            find_table(data_dir, "BOK") is not None
+            or (data_dir / "DROPCAPS.csv").exists()
+        )
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        if (data_dir / "BOK.csv").exists():
-            print("  Applying book translations from BOK.csv...")
+        if find_table(data_dir, "BOK") is not None:
+            print("  Applying book translations from BOK...")
             # Import directly into extracted_dir (patching in place)
-            import_csv(extracted_dir, extracted_dir, data_dir / "BOK.csv")
+            import_book_table(extracted_dir, extracted_dir, find_table(data_dir, "BOK"))
         if (data_dir / "DROPCAPS.csv").exists():
             print("  Applying drop caps from DROPCAPS.csv...")
             dropcaps_import(extracted_dir, extracted_dir, data_dir / "DROPCAPS.csv")
@@ -63,17 +68,15 @@ class DialogPatcher(Patcher):
         return "Dialog Translations"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "DDX.csv").exists() or (data_dir / "LOCKS.csv").exists()
+        return (
+            find_table(data_dir, "DDX") is not None
+            or find_table(data_dir, "LOCKS") is not None
+        )
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        ddx, locks = data_dir / "DDX.csv", data_dir / "LOCKS.csv"
-        print("  Applying dialog translations from DDX.csv/LOCKS.csv...")
-        import_dialog_csv(
-            extracted_dir,
-            extracted_dir,
-            ddx if ddx.exists() else None,
-            locks if locks.exists() else None,
-        )
+        ddx, locks = find_table(data_dir, "DDX"), find_table(data_dir, "LOCKS")
+        print("  Applying dialog translations from DDX/LOCKS...")
+        import_dialog_table(extracted_dir, extracted_dir, ddx, locks)
 
 
 class ItemNamePatcher(Patcher):
@@ -82,15 +85,15 @@ class ItemNamePatcher(Patcher):
         return "Item Names"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "OBJINFO.csv").exists()
+        return find_table(data_dir, "OBJINFO") is not None
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Applying item names from OBJINFO.csv...")
+        print("  Applying item names from OBJINFO...")
         font = data_dir / "modified" / "GAME.FNT"
-        import_objinfo_csv(
+        import_objinfo_table(
             extracted_dir,
             extracted_dir,
-            data_dir / "OBJINFO.csv",
+            find_table(data_dir, "OBJINFO"),
             font if font.exists() else None,
         )
 
@@ -101,11 +104,17 @@ class KeywordPatcher(Patcher):
         return "Keywords"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "KEYWORD.csv").exists()
+        return find_table(data_dir, "KEYWORD") is not None
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Applying keywords from KEYWORD.csv...")
-        import_keyword_csv(extracted_dir, extracted_dir, data_dir / "KEYWORD.csv")
+        print("  Applying keywords from KEYWORD...")
+        font = data_dir / "modified" / "GAME.FNT"
+        import_keyword_table(
+            extracted_dir,
+            extracted_dir,
+            find_table(data_dir, "KEYWORD"),
+            font if font.exists() else None,
+        )
 
 
 class CombatNamePatcher(Patcher):
@@ -114,11 +123,13 @@ class CombatNamePatcher(Patcher):
         return "Combat Names"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "MNAMES.csv").exists()
+        return find_table(data_dir, "MNAMES") is not None
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Applying combat names from MNAMES.csv...")
-        import_mnames_csv(extracted_dir, extracted_dir, data_dir / "MNAMES.csv")
+        print("  Applying combat names from MNAMES...")
+        import_mnames_table(
+            extracted_dir, extracted_dir, find_table(data_dir, "MNAMES")
+        )
 
 
 class UIPatcher(Patcher):
@@ -127,16 +138,16 @@ class UIPatcher(Patcher):
         return "UI Texts"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "UI.csv").exists()
+        return find_table(data_dir, "UI") is not None
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Applying UI texts from UI.csv...")
+        print("  Applying UI texts from UI...")
         # labels are measured with the Russian font, which is copied later
         font = data_dir / "modified" / "GAME.FNT"
-        import_ui_csv(
+        import_ui_table(
             extracted_dir,
             extracted_dir,
-            data_dir / "UI.csv",
+            find_table(data_dir, "UI"),
             font if font.exists() else None,
         )
 
@@ -147,11 +158,11 @@ class MiscPatcher(Patcher):
         return "Spells and Town Names"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "MISC.csv").exists()
+        return find_table(data_dir, "MISC") is not None
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Applying spells and town names from MISC.csv...")
-        import_misc_csv(extracted_dir, extracted_dir, data_dir / "MISC.csv")
+        print("  Applying spells and town names from MISC...")
+        import_misc_table(extracted_dir, extracted_dir, find_table(data_dir, "MISC"))
 
 
 class FontPatcher(Patcher):
@@ -306,18 +317,21 @@ def patch_game(
 
         print("Patching KRONDOR.EXE (characters 0x80+)...")
         patch_exe(exe_path)
-        if (data_dir / "EXE.csv").exists():
-            print("Applying EXE texts from EXE.csv...")
-            import_exe_text_csv(exe_path, data_dir / "EXE.csv")
+        if find_table(data_dir, "EXE") is not None:
+            print("Applying EXE texts...")
+            font = data_dir / "modified" / "GAME.FNT"
+            import_exe_text_table(
+                exe_path, find_table(data_dir, "EXE"), font if font.exists() else None
+            )
         print()
 
-        party_csv = data_dir / "PARTY.csv"
-        if party_csv.exists():
+        party_table = find_table(data_dir, "PARTY")
+        if party_table is not None:
             startup_path = _find_case_insensitive_entry(krondor_dir, "startup.gam")
             if startup_path is None:
                 raise ValueError("Invalid game ZIP: missing startup.gam")
-            print("Applying party member names from PARTY.csv...")
-            import_party_csv(startup_path, party_csv)
+            print("Applying party member names from PARTY...")
+            import_party_table(startup_path, party_table)
             print()
 
         # Extract game resources

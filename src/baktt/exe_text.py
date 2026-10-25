@@ -23,15 +23,16 @@ which writes "<n> <form> <joiner> <m> <form>" with Russian plural forms
 
 from __future__ import annotations
 
-import csv
 import re
 import struct
 from pathlib import Path
 
 from cyclopts import App
 
-from baktt.dialog import CSV_HEADER, load_translations
 from baktt.encoding import decode, encode
+from baktt.fonts import Font
+from baktt.table import Row, load_translations, write_table
+from baktt.ui import text_width
 
 app = App(name="exe-text", help="Texts in KRONDOR.EXE (in place)")
 
@@ -272,34 +273,106 @@ def fields(data: bytes) -> list[Field]:
     return result
 
 
+# --- notes for translators (column D of the table) ---------------------------
+
+_MONEY_ALL = "Склонение включится, только если заполнены все 7 строк EXE:MONEY:0–6."
+_MONEY_FORMS = ("1, 21, 31…", "2–4, 22–24…", "0, 5–20, 25–30…")
+MONEY_NOTES = {
+    "EXE:MONEY:0": "Соединитель между суммами sovereigns и royals "
+    f"(«26 … and 9 …»). {_MONEY_ALL}",
+    **{
+        f"EXE:MONEY:{1 + i + 3 * j}": f"Слово «{word}» в форме для чисел {forms} "
+        + _MONEY_ALL
+        for j, word in enumerate(("sovereign", "royal"))
+        for i, forms in enumerate(_MONEY_FORMS)
+    },
+}
+# the strings replaced by the money plurals
+MONEY_REPLACED = {"EXE:DS:0786", "EXE:DS:07A3", "EXE:DS:07BF", "EXE:DS:07CB"}
+_KEEPER = (
+    "Подставляется в реплики диалогов вместо @, всегда в одной форме — "
+    "удобнее именительный падеж."
+)
+EXTRA_NOTES = {
+    "EXE:DS:0F29": "Деньги на панели: число соверенов, буква, число роялов, буква. "
+    "Склонения нет.",
+    "EXE:DS:0CA2": "Число подставляется любое, склонения нет.",
+    "EXE:DS:0AA2": _KEEPER,
+    "EXE:DS:0AAF": _KEEPER,
+}
+# Screen width (pixels, GAME.FNT) of the labels whose place is set by the code:
+# the ratings on the character screen (label at x=105, the numbers are aligned
+# to the right at x=162; a two-digit number starts at x=154).
+PIXEL_LIMITS = {
+    "EXE:276B:00": 44,  # Health
+    "EXE:276B:01": 44,  # Stamina
+    "EXE:276B:02": 44,  # Speed
+    "EXE:276B:03": 44,  # Strength
+}
+_PRINTF = re.compile(r"%[-+ #0]*\d*(?:\.\d+)?[lhF]*[a-zA-Z%]")
+
+
+def field_note(field: Field, font: Font | None = None) -> str:
+    size = field.size - 1
+    if field.key.startswith("EXE:DS:"):
+        parts = [
+            f"На прежнем месте — до {size} знаков; длиннее тоже можно — "
+            "место найдётся автоматически."
+        ]
+    else:
+        parts = [f"Не длиннее {size} знаков: поле фиксированной длины."]
+    codes = _PRINTF.findall(decode(field.text))
+    if codes:
+        parts.append(f"Коды {' '.join(codes)} сохранить в том же порядке.")
+    if field.key in PIXEL_LIMITS:
+        english = f" (английский — {text_width(font, field.text)} px)" if font else ""
+        parts.append(f"Не шире {PIXEL_LIMITS[field.key]} px{english}.")
+    if field.key in MONEY_REPLACED:
+        parts.append(
+            "Не используется, если заполнено склонение денег (строки EXE:MONEY:0–6)."
+        )
+    if field.key in EXTRA_NOTES:
+        parts.append(EXTRA_NOTES[field.key])
+    return " ".join(parts)
+
+
 @app.command(name="export")
-def export_command(exe_path: Path, csv_path: Path) -> None:
-    """Export the texts to CSV (key, english, russian, max length)."""
+def export_command(exe_path: Path, table_path: Path, font: Path | None = None) -> None:
+    """Export the texts to a table (.xlsx or .csv), with notes on the limits.
+
+    `font` (GAME.FNT) is used to give the width of the English text in the
+    notes of the labels with a width limit.
+    """
     data = exe_path.read_bytes()
-    with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow((*CSV_HEADER, "note"))
-        for field in fields(data):
-            writer.writerow(
-                (field.key, decode(field.text), "", f"max {field.size - 1} bytes")
-            )
-        for key, english, note in MONEY_KEYS:
-            writer.writerow((key, english, "", f"money plural: {note}"))
+    game_font = Font.from_file(font) if font else None
+    rows = [
+        Row(field.key, decode(field.text), note=field_note(field, game_font))
+        for field in fields(data)
+    ]
+    rows += [
+        Row(key, english, note=MONEY_NOTES[key]) for key, english, _note in MONEY_KEYS
+    ]
+    write_table(table_path, rows)
     print(
         f"{len(fields(data))} EXE strings and {len(MONEY_KEYS)} money words "
-        f"exported to {csv_path}"
+        f"exported to {table_path}"
     )
 
 
 @app.command(name="import")
-def import_command(exe_path: Path, csv_path: Path) -> None:
-    """Write the translation into KRONDOR.EXE in place."""
-    import_csv(exe_path, csv_path)
+def import_command(exe_path: Path, table_path: Path, font: Path | None = None) -> None:
+    """Write the translation into KRONDOR.EXE in place.
+
+    With `font` (the Russian GAME.FNT) the labels with a width limit are
+    measured and must fit (PIXEL_LIMITS).
+    """
+    import_table(exe_path, table_path, font)
 
 
-def import_csv(exe_path: Path, csv_path: Path) -> None:
+def import_table(exe_path: Path, table_path: Path, font: Path | None = None) -> None:
     data = bytes(exe_path.read_bytes())
-    translations = load_translations(csv_path)
+    translations = load_translations(table_path)
+    game_font = Font.from_file(font) if font else None
     errors: list[str] = []
     in_place: list[tuple[Field, bytes]] = []
     moved: list[tuple[Field, bytes]] = []
@@ -323,6 +396,14 @@ def import_csv(exe_path: Path, csv_path: Path) -> None:
         except ValueError as e:
             errors.append(f"{field.key}: {e}")
             continue
+        if game_font and field.key in PIXEL_LIMITS:
+            width = text_width(game_font, encoded)
+            if width > PIXEL_LIMITS[field.key]:
+                errors.append(
+                    f"{field.key}: {russian!r} is {width} px wide, "
+                    f"max {PIXEL_LIMITS[field.key]} px"
+                )
+                continue
         if len(encoded) < field.size:
             in_place.append((field, encoded))
         elif field.key.startswith("EXE:DS:"):

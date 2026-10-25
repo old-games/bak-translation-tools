@@ -12,18 +12,34 @@ pointers are relocated; pointers into the table are kept.
 
 from __future__ import annotations
 
-import csv
 import struct
 from pathlib import Path
 
 from cyclopts import App
 
-from baktt.dialog import CSV_HEADER, load_translations
 from baktt.encoding import decode, encode
+from baktt.exe_patch import TOPIC_BUTTON_WIDTH
+from baktt.fonts import Font
+from baktt.table import Row, load_translations, write_table
+from baktt.ui import text_width
 
 app = App(name="keyword", help="Operations on dialog keywords (KEYWORD.DAT)")
 
 FILENAME = "KEYWORD.DAT"
+FONT = "GAME.FNT"
+# Topics and answers are shown on buttons of a fixed size. Topic buttons are
+# 70 px in the original (the longest English topic, "Rhuargh's room", is 70 px)
+# and 76 px with the EXE patch (baktt.exe_patch); answer buttons are 70 px.
+ANSWER_BUTTON_WIDTH = 70
+
+
+def button_width(number: int) -> int | None:
+    """Width limit of a keyword shown on a button (None: not a button)."""
+    if 1 <= number <= 171:
+        return TOPIC_BUTTON_WIDTH
+    if 241 <= number <= 291:
+        return ANSWER_BUTTON_WIDTH
+    return None
 
 
 class KeywordFile:
@@ -102,27 +118,44 @@ def _rows(keywords: KeywordFile) -> list[tuple[int, int]]:
 
 
 @app.command(name="export")
-def export_command(src_dir: Path, csv_path: Path) -> None:
-    """Export keywords to CSV (key, english, russian)."""
+def export_command(src_dir: Path, table_path: Path) -> None:
+    """Export keywords to a table (.xlsx or .csv); the note of a topic or an
+    answer gives the button width limit."""
     keywords = KeywordFile((src_dir / FILENAME).read_bytes())
-    rows = _rows(keywords)
-    with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
-        for i, pointer in rows:
-            writer.writerow((_key(i), decode(keywords.strings[pointer]), ""))
-    print(f"{len(rows)} keywords exported to {csv_path}")
+    font = Font.from_file(src_dir / FONT)
+    rows = []
+    for i, pointer in _rows(keywords):
+        text = keywords.strings[pointer]
+        note = ""
+        limit = button_width(i)
+        if limit:
+            width = text_width(font, text)
+            note = (
+                f"Не шире {limit} px (английский — {width} px): "
+                "кнопка не растягивается."
+            )
+        rows.append(Row(_key(i), decode(text), note=note))
+    print(f"{write_table(table_path, rows)} keywords exported to {table_path}")
 
 
 @app.command(name="import")
-def import_command(src_dir: Path, imported_dir: Path, csv_path: Path) -> None:
-    """Build KEYWORD.DAT with the translation from CSV (empty = keep original)."""
-    import_csv(src_dir, imported_dir, csv_path)
+def import_command(
+    src_dir: Path, imported_dir: Path, table_path: Path, font: Path | None = None
+) -> None:
+    """Build KEYWORD.DAT with the translation from a table (empty = keep original).
+
+    Topics and answers are measured with `font` (default: GAME.FNT from
+    src_dir; pass the Russian font) and must fit the button.
+    """
+    import_table(src_dir, imported_dir, table_path, font)
 
 
-def import_csv(src_dir: Path, imported_dir: Path, csv_path: Path) -> None:
+def import_table(
+    src_dir: Path, imported_dir: Path, table_path: Path, font_path: Path | None = None
+) -> None:
     keywords = KeywordFile((src_dir / FILENAME).read_bytes())
-    translations = load_translations(csv_path)
+    font = Font.from_file(font_path or src_dir / FONT)
+    translations = load_translations(table_path)
     errors: list[str] = []
     used = 0
     for i, pointer in _rows(keywords):
@@ -136,10 +169,18 @@ def import_csv(src_dir: Path, imported_dir: Path, csv_path: Path) -> None:
         if not russian.strip():
             continue
         try:
-            keywords.strings[pointer] = encode(russian)
+            encoded = encode(russian)
         except ValueError as e:
             errors.append(f"{key}: {e}")
             continue
+        limit = button_width(i)
+        if limit and text_width(font, encoded) > limit:
+            errors.append(
+                f"{key}: {russian!r} is {text_width(font, encoded)} px wide, "
+                f"max {limit} px"
+            )
+            continue
+        keywords.strings[pointer] = encoded
         used += 1
     for error in errors:
         print("ERROR", error)

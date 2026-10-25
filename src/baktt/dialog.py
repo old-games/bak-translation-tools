@@ -15,7 +15,7 @@ A translation changes text lengths, so the file is rebuilt: snippets keep their
 order and all offsets (index, choice targets, action 0x10 targets) are
 relocated.
 
-Text markup in CSV:
+Text markup in the tables:
   {F0}..{F4}        - bytes F0..F4 (style of the next word);
   {E1}text{/E1}     - byte E1 before every character of the text (same for E3...);
   {XX}              - any other byte that is not in the encoding;
@@ -24,7 +24,6 @@ Text markup in CSV:
 
 from __future__ import annotations
 
-import csv
 import random
 import re
 import struct
@@ -34,6 +33,7 @@ from pathlib import Path
 from cyclopts import App
 
 from baktt.encoding import INVERSE_CHARMAP, encode
+from baktt.table import Row, load_translations, write_table
 
 app = App(name="dialog", help="Operations on the dialog files (.DDX)")
 
@@ -47,7 +47,6 @@ TEXT_BUFFER_SIZE = 0x3C8C
 SUBSTITUTION_SIZE = 40
 KEY_MASK = 0xF0000000
 PUSH_NEXT_DIALOG = 0x10
-CSV_HEADER = ("key", "english", "russian")
 
 
 @dataclass
@@ -277,13 +276,13 @@ def build_wordlock(key: str, english: str, riddle: str, answer: str) -> str:
     return "\n#\n".join((answer, "\n".join(rows), riddle))
 
 
-def load_lock_translations(csv_path: Path) -> dict[str, dict[str, str]]:
-    """{snippet key: {"riddle": russian, "answer": russian}} from LOCKS.csv."""
+def load_lock_translations(path: Path) -> dict[str, dict[str, str]]:
+    """{snippet key: {"riddle": russian, "answer": russian}} from the LOCKS table."""
     locks: dict[str, dict[str, str]] = {}
-    for key, (_english, russian) in load_translations(csv_path).items():
+    for key, (_english, russian) in load_translations(path).items():
         snippet_key, part = key.rsplit(":", 1)
         if part not in LOCK_PARTS:
-            raise ValueError(f"{csv_path}: unexpected key {key}")
+            raise ValueError(f"{path}: unexpected key {key}")
         locks.setdefault(snippet_key, {})[part] = russian
     return locks
 
@@ -368,74 +367,71 @@ def _key(path: Path, offset: int) -> str:
     return f"{path.stem}:{offset:06X}"
 
 
-@app.command(name="export")
-def export_command(ddx_dir: Path, csv_path: Path, *, locks: Path | None = None) -> None:
-    """Export texts of all DDX files to CSV (key, english, russian).
+LOCK_NOTES = {
+    "riddle": "Загадка; ответ — в следующей строке.",
+    "answer": "Ответ: до 11 знаков, только буквы, цифры и пробел. "
+    "Колёсики с буквами сделает программа.",
+}
 
-    With --locks the word locks go to a separate CSV, two rows per lock (the
+
+@app.command(name="export")
+def export_command(
+    ddx_dir: Path, table_path: Path, *, locks: Path | None = None
+) -> None:
+    """Export texts of all DDX files to a table (.xlsx or .csv).
+
+    With --locks the word locks go to a separate table, two rows per lock (the
     riddle and the answer) instead of the full lock text.
     """
-    export_csv(ddx_dir, csv_path, locks)
+    export_table(ddx_dir, table_path, locks)
 
 
 @app.command(name="import")
 def import_command(
-    ddx_dir: Path, imported_dir: Path, csv_path: Path, *, locks: Path | None = None
+    ddx_dir: Path, imported_dir: Path, table_path: Path, *, locks: Path | None = None
 ) -> None:
-    """Build DDX files with the translation from CSV (empty = keep original).
+    """Build DDX files with the translation from a table (empty = keep original).
 
-    --locks: the word lock CSV (riddle and answer rows); the wheels of a
+    --locks: the word lock table (riddle and answer rows); the wheels of a
     translated answer are generated.
     """
-    import_csv(ddx_dir, imported_dir, csv_path, locks)
+    import_table(ddx_dir, imported_dir, table_path, locks)
 
 
-def export_csv(ddx_dir: Path, csv_path: Path, locks_path: Path | None = None) -> None:
-    rows: list[tuple[str, str, str]] = []
-    lock_rows: list[tuple[str, str, str]] = []
-    for path in _dialog_files(ddx_dir):
-        dialog = DialogFile.from_file(path)
+def export_table(ddx_dir: Path, path: Path, locks_path: Path | None = None) -> None:
+    rows: list[Row] = []
+    lock_rows: list[Row] = []
+    for ddx in _dialog_files(ddx_dir):
+        dialog = DialogFile.from_file(ddx)
         for offset, snippet in dialog.snippets.items():
             if not snippet.text:
                 continue
-            key, text = _key(path, offset), text_to_markup(snippet.text)
+            key, text = _key(ddx, offset), text_to_markup(snippet.text)
             lock = parse_wordlock(text) if locks_path else None
             if lock is None:
-                rows.append((key, text, ""))
+                rows.append(Row(key, text))
             else:
                 answer, _rows, riddle = lock
-                lock_rows.append((f"{key}:riddle", riddle.removeprefix("\n"), ""))
-                lock_rows.append((f"{key}:answer", answer, ""))
-    _write_csv(csv_path, rows)
-    print(f"{len(rows)} strings exported to {csv_path}")
+                riddle = riddle.removeprefix("\n")
+                lock_rows.append(
+                    Row(f"{key}:riddle", riddle, note=LOCK_NOTES["riddle"])
+                )
+                lock_rows.append(
+                    Row(f"{key}:answer", answer, note=LOCK_NOTES["answer"])
+                )
+    print(f"{write_table(path, rows)} strings exported to {path}")
     if locks_path:
-        _write_csv(locks_path, lock_rows)
+        write_table(locks_path, lock_rows)
         print(f"{len(lock_rows) // 2} word locks exported to {locks_path}")
 
 
-def _write_csv(csv_path: Path, rows: list[tuple[str, str, str]]) -> None:
-    with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
-        writer.writerows(rows)
-
-
-def load_translations(csv_path: Path) -> dict[str, tuple[str, str]]:
-    with open(csv_path, encoding="utf-8-sig", newline="") as f:
-        reader = csv.reader(f)
-        header = next(reader)
-        if tuple(header[:3]) != CSV_HEADER:
-            raise ValueError(f"{csv_path}: expected header {CSV_HEADER}, got {header}")
-        return {row[0]: (row[1], row[2]) for row in reader if row and row[0]}
-
-
-def import_csv(
+def import_table(
     ddx_dir: Path,
     imported_dir: Path,
-    csv_path: Path | None,
+    path: Path | None,
     locks_path: Path | None = None,
 ) -> None:
-    translations = load_translations(csv_path) if csv_path else {}
+    translations = load_translations(path) if path else {}
     locks = load_lock_translations(locks_path) if locks_path else {}
     imported_dir.mkdir(parents=True, exist_ok=True)
     used = 0

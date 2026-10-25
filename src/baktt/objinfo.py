@@ -15,15 +15,14 @@ wider than the widest one-line English name.
 
 from __future__ import annotations
 
-import csv
 import struct
 from pathlib import Path
 
 from cyclopts import App
 
-from baktt.dialog import CSV_HEADER, load_translations
 from baktt.encoding import decode, encode
 from baktt.fonts import Font
+from baktt.table import Row, load_translations, write_table
 
 app = App(name="objinfo", help="Operations on item names (OBJINFO.DAT)")
 
@@ -88,38 +87,39 @@ def _key(index: int) -> str:
     return f"OBJINFO:{index:03d}"
 
 
+NOTE = (
+    "Не длиннее 29 знаков. У торговца делится на 2 строки: "
+    "место переноса — «|» вместо пробела."
+)
+
+
 @app.command(name="export")
-def export_command(src_dir: Path, csv_path: Path) -> None:
-    """Export item names to CSV (key, english, russian)."""
+def export_command(src_dir: Path, table_path: Path) -> None:
+    """Export item names to a table (.xlsx or .csv)."""
     names = read_names((src_dir / FILENAME).read_bytes())
-    with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
-        for i, name in enumerate(names):
-            if name:
-                writer.writerow((_key(i), name, ""))
-    print(f"{sum(1 for n in names if n)} item names exported to {csv_path}")
+    rows = [Row(_key(i), name, note=NOTE) for i, name in enumerate(names) if name]
+    print(f"{write_table(table_path, rows)} item names exported to {table_path}")
 
 
 @app.command(name="import")
 def import_command(
-    src_dir: Path, imported_dir: Path, csv_path: Path, font: Path | None = None
+    src_dir: Path, imported_dir: Path, table_path: Path, font: Path | None = None
 ) -> None:
     """Build OBJINFO.DAT with translated names (empty = keep original).
 
     "|" in a name marks where to split it into two lines. Widths are measured
     with `font` (default: GAME.FNT from src_dir; pass the Russian font).
     """
-    import_csv(src_dir, imported_dir, csv_path, font)
+    import_table(src_dir, imported_dir, table_path, font)
 
 
-def import_csv(
-    src_dir: Path, imported_dir: Path, csv_path: Path, font_path: Path | None = None
+def import_table(
+    src_dir: Path, imported_dir: Path, table_path: Path, font_path: Path | None = None
 ) -> None:
     font = Font.from_file(font_path or src_dir / "GAME.FNT")
     data = bytearray((src_dir / FILENAME).read_bytes())
     names = read_names(bytes(data))
-    translations = load_translations(csv_path)
+    translations = load_translations(table_path)
     errors: list[str] = []
     used = 0
     for i, name in enumerate(names):

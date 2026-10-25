@@ -29,13 +29,12 @@ the developers of the `xbak` port.
 
 ## Command Line Tools
 
-* `uv run baktt sp export <csv dir> <out dir>` / `sp import <xlsx> <keys.csv> <csv>` - XLSX for the old-games.ru translation system (column A original, B translation, no keys: rows are matched by order) and back
-* `uv run baktt export-all <game dir> <out dir>` - Export everything to translate from an installed game (1.02): one CSV per kind of text, DROPCAPS.csv, the images with text as PNG (`--all-images` for all), README with the rules
+* `uv run baktt export-all <game dir> <out dir>` - Export everything to translate from an installed game (1.02): one table per kind of text (`--format xlsx` for the old-games.ru translation system, `csv` for tests; columns: original, translation, key, note - see `data/README.md`), DROPCAPS.csv, the images with text as PNG (`--all-images` for all), README with the rules
 * `uv run baktt resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
 * `uv run baktt fonts` - Operations on the font files (.FNT)
 * `uv run baktt book` - Operations on the book files (.BOK): texts, drop caps (`dropcaps-export`/`dropcaps-import`)
-* `uv run baktt dialog` - Operations on the dialog files (.DDX): export texts to CSV (`--locks`: word lock riddles and answers to a separate CSV, the wheels are generated on import), build translated files
-* `uv run baktt objinfo` - Item names (OBJINFO.DAT): export to CSV, import a translation
+* `uv run baktt dialog` - Operations on the dialog files (.DDX): export texts to a table (`--locks`: word lock riddles and answers to a separate table, the wheels are generated on import), build translated files
+* `uv run baktt objinfo` - Item names (OBJINFO.DAT): export to a table, import a translation
 * `uv run baktt keyword` - Dialog topics, answer buttons and NPC names (KEYWORD.DAT)
 * `uv run baktt mnames` - Combat names: monsters and party members (MNAMES.DAT)
 * `uv run baktt party` - Party member names in STARTUP.GAM (substituted for @ in texts)
