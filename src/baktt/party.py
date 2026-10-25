@@ -19,6 +19,11 @@ app = App(name="party", help="Party member names in STARTUP.GAM")
 NAMES_OFFSET = 0x9F
 NAME_SIZE = 10
 NAME_COUNT = 6
+NAME_NOTE = (
+    "Не длиннее 9 знаков, в именительном падеже. В тексте падеж — окончанием "
+    "сразу после имени (@а, @у, @ом, @е → Локлира, Локлиру…): имя должно "
+    "склоняться прибавлением окончания."
+)
 
 
 def read_names(data: bytes) -> list[str]:
@@ -42,9 +47,7 @@ def _key(index: int) -> str:
 def export_command(startup_gam: Path, table_path: Path) -> None:
     """Export party member names to a table (.xlsx or .csv)."""
     names = read_names(startup_gam.read_bytes())
-    rows = [
-        Row(_key(i), name, note="Не длиннее 9 знаков.") for i, name in enumerate(names)
-    ]
+    rows = [Row(_key(i), name, note=NAME_NOTE) for i, name in enumerate(names)]
     print(f"{write_table(table_path, rows)} names exported to {table_path}")
 
 

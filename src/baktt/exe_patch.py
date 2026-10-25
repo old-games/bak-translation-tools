@@ -15,6 +15,15 @@ of 4 (records of 33 bytes, as in REQ_*.DAT: x at +0Bh, width at +0Fh): x =
 12 + 75 * column, width 70, the GoodBye button at x = 237. The patch stretches
 the grid over the screen: x = 3 + 78 * column (3, 81, 159, 237), width 76, the
 right edge 312 (the screen border is at 317); GoodBye stays at x = 237.
+
+3. Declension of hero names. The @ substitution (overlay 142, file 0x3B49A)
+checks whether the character after @ is a digit (@N = text variable N, else @
+is the active hero's name) via the ctype table [bx+3635h], but takes the
+character with `cbw`: for bytes >= 0x80 the index is negative and the garbage
+before the table marks many Cyrillic letters as digits (0xB3, 0xAE of the
+endings -u, -om among them), so such an ending prints a garbage variable and
+loses its letter. `movzx` makes the check unsigned (the upper half of the table
+is zero): Russian endings may follow the name directly.
 """
 
 from pathlib import Path
@@ -35,6 +44,8 @@ PATCHES: dict[int, tuple[bytes, bytes]] = {
     0x06E12A: (bytes.fromhex("8a46fe98"), bytes.fromhex("0fb646fe")),
     0x06E154: (bytes.fromhex("8a46fc98"), bytes.fromhex("0fb646fc")),
     0x06E402: (bytes.fromhex("8a46fe98"), bytes.fromhex("0fb646fe")),
+    # the character after @ (overlay 142)
+    0x03B4A6: (bytes.fromhex("268a470198"), bytes.fromhex("260fb64701")),
     # dialog topic buttons (overlay 143)
     0x03D751: (bytes.fromhex("6bd24b"), bytes.fromhex("6bd24e")),  # imul dx, 75 -> 78
     0x03D754: (bytes.fromhex("83c20c"), bytes.fromhex("83c203")),  # add dx, 12 -> 3

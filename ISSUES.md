@@ -27,3 +27,18 @@ Fix:
   numbers work again. Verified in DOSBox: dialogs, books (wrapping, justification, italics, page
   numbers) and the main menu.
 - The Russian fonts were converted to this layout (Cyrillic at 0x80+).
+
+## Resolved: Russian endings after `@` (hero names)
+
+- The `@` substitution (overlay 142, file offset 0x3B49A) checks whether the character after `@`
+  is a digit (`@N` = text variable N, otherwise `@` is the active hero's name) via the ctype table
+  `[bx+3635h]`, but takes the character with `cbw`. For bytes >= 0x80 the index is negative, and
+  the garbage before the table marks many Cyrillic letters as digits: `@у`, `@ом` printed a
+  garbage variable and lost the letter (`@а`, `@е` worked).
+
+Fix:
+
+- `baktt exe patch` replaces `mov al,es:[bx+1]; cbw` with `movzx ax,byte es:[bx+1]` (file offset
+  0x3B4A6, same length); the upper half of the table is zero. Verified in DOSBox: `@а`, `@е`,
+  `@у`, `@ом` after Locklear, Owyn and Gorath.
+- The export notes (DDX rows with `@`, PARTY) tell translators to decline names with endings.

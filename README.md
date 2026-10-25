@@ -100,6 +100,7 @@ GitHub Actions builds it on every change of the editor or the fonts code: the `b
   * [x] Strings in KRONDOR.EXE in place
   * [x] Strings in KRONDOR.EXE longer than the original (DGROUP extension + reference relocation)
 * [x] Characters 0x80+ in fonts (KRONDOR.EXE patch)
+* [x] Russian endings after `@` in hero names (KRONDOR.EXE patch)
 * [ ] Image Processing
   * [x] Extract images
     * [x] SCX

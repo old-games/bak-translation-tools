@@ -367,6 +367,13 @@ def _key(path: Path, offset: int) -> str:
     return f"{path.stem}:{offset:06X}"
 
 
+# @, @0, @3, @4, @5 are almost always hero names, @1 is a monster (MNAMES.DAT)
+NAME_NOTE = (
+    "@ (и обычно @0, @3, @4, @5) — имя героя; падеж — окончанием сразу после "
+    "него: @а, @у, @ом, @е (Локлира, Локлиру, Локлиром, Локлире). "
+    "@1 — противник, @2 — разное: их не склонять."
+)
+
 LOCK_NOTES = {
     "riddle": "Загадка; ответ — в следующей строке.",
     "answer": "Ответ: до 11 знаков, только буквы, цифры и пробел. "
@@ -409,7 +416,7 @@ def export_table(ddx_dir: Path, path: Path, locks_path: Path | None = None) -> N
             key, text = _key(ddx, offset), text_to_markup(snippet.text)
             lock = parse_wordlock(text) if locks_path else None
             if lock is None:
-                rows.append(Row(key, text))
+                rows.append(Row(key, text, note=NAME_NOTE if "@" in text else ""))
             else:
                 answer, _rows, riddle = lock
                 riddle = riddle.removeprefix("\n")
