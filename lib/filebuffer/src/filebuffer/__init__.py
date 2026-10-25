@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import _filebuffer
@@ -78,16 +80,40 @@ class FileBuffer:
         return fb
 
     def compressRLE(self) -> tuple[int, FileBuffer]:
+        # Implemented in Python: the C++ CompressRLE loops forever on a tail of
+        # 128+ incompressible bytes (n = skipped & 0x7f == 0).
         current = self.tell()
         self.seek(0)
-        uncompressed_size = self.size()
-        temp = FileBuffer(uncompressed_size)
-        compressed_size = self._fb.CompressRLE(temp._fb)
+        data = self.read(self.size())
         self.seek(current)
-        fb = FileBuffer(compressed_size)
-        fb.write(temp.read(compressed_size))
+        out = bytearray()
+        literal = bytearray()
+
+        def flush() -> None:
+            for i in range(0, len(literal), 127):
+                chunk = literal[i : i + 127]
+                out.append(len(chunk))
+                out.extend(chunk)
+            literal.clear()
+
+        i = 0
+        while i < len(data):
+            run = 1
+            while i + run < len(data) and run < 127 and data[i + run] == data[i]:
+                run += 1
+            if run > 3:
+                flush()
+                out.append(0x80 | run)
+                out.append(data[i])
+                i += run
+            else:
+                literal.append(data[i])
+                i += 1
+        flush()
+        fb = FileBuffer(len(out))
+        fb.write(bytes(out))
         fb.seek(0)
-        return compressed_size, fb
+        return len(out), fb
 
     def decompressLZW(self, uncompressed_size: int) -> FileBuffer:
         fb = FileBuffer(uncompressed_size)

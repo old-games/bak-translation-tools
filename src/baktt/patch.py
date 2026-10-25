@@ -5,8 +5,20 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import mkdtemp
 
-from baktt.book import import_csv
+from baktt.book import dropcaps_import
+from baktt.book import import_table as import_book_table
+from baktt.dialog import import_table as import_dialog_table
+from baktt.exe_patch import patch_exe
+from baktt.exe_text import import_table as import_exe_text_table
+from baktt.images import images_from_png
+from baktt.keyword import import_table as import_keyword_table
+from baktt.misc import import_table as import_misc_table
+from baktt.mnames import import_table as import_mnames_table
+from baktt.objinfo import import_table as import_objinfo_table
+from baktt.party import import_table as import_party_table
 from baktt.resources import archive_resources, extract_resources
+from baktt.table import find_table
+from baktt.ui import import_table as import_ui_table
 
 
 class Patcher(ABC):
@@ -33,15 +45,124 @@ class BookPatcher(Patcher):
         return "Book Translations"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "BOK.csv").exists()
+        return (
+            find_table(data_dir, "BOK") is not None
+            or (data_dir / "DROPCAPS.csv").exists()
+        )
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Applying book translations from BOK.csv...")
-
-        # Import directly into extracted_dir (patching in place)
-        import_csv(extracted_dir, extracted_dir, data_dir / "BOK.csv")
+        if find_table(data_dir, "BOK") is not None:
+            print("  Applying book translations from BOK...")
+            # Import directly into extracted_dir (patching in place)
+            import_book_table(extracted_dir, extracted_dir, find_table(data_dir, "BOK"))
+        if (data_dir / "DROPCAPS.csv").exists():
+            print("  Applying drop caps from DROPCAPS.csv...")
+            dropcaps_import(extracted_dir, extracted_dir, data_dir / "DROPCAPS.csv")
         bok_files = list(extracted_dir.glob("*.BOK"))
         print(f"  ✓ Applied translations to {len(bok_files)} book files")
+
+
+class DialogPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Dialog Translations"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (
+            find_table(data_dir, "DDX") is not None
+            or find_table(data_dir, "LOCKS") is not None
+        )
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        ddx, locks = find_table(data_dir, "DDX"), find_table(data_dir, "LOCKS")
+        print("  Applying dialog translations from DDX/LOCKS...")
+        import_dialog_table(extracted_dir, extracted_dir, ddx, locks)
+
+
+class ItemNamePatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Item Names"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return find_table(data_dir, "OBJINFO") is not None
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying item names from OBJINFO...")
+        font = data_dir / "modified" / "GAME.FNT"
+        import_objinfo_table(
+            extracted_dir,
+            extracted_dir,
+            find_table(data_dir, "OBJINFO"),
+            font if font.exists() else None,
+        )
+
+
+class KeywordPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Keywords"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return find_table(data_dir, "KEYWORD") is not None
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying keywords from KEYWORD...")
+        font = data_dir / "modified" / "GAME.FNT"
+        import_keyword_table(
+            extracted_dir,
+            extracted_dir,
+            find_table(data_dir, "KEYWORD"),
+            font if font.exists() else None,
+        )
+
+
+class CombatNamePatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Combat Names"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return find_table(data_dir, "MNAMES") is not None
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying combat names from MNAMES...")
+        import_mnames_table(
+            extracted_dir, extracted_dir, find_table(data_dir, "MNAMES")
+        )
+
+
+class UIPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "UI Texts"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return find_table(data_dir, "UI") is not None
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying UI texts from UI...")
+        # labels are measured with the Russian font, which is copied later
+        font = data_dir / "modified" / "GAME.FNT"
+        import_ui_table(
+            extracted_dir,
+            extracted_dir,
+            find_table(data_dir, "UI"),
+            font if font.exists() else None,
+        )
+
+
+class MiscPatcher(Patcher):
+    @property
+    def name(self) -> str:
+        return "Spells and Town Names"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return find_table(data_dir, "MISC") is not None
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        print("  Applying spells and town names from MISC...")
+        import_misc_table(extracted_dir, extracted_dir, find_table(data_dir, "MISC"))
 
 
 class FontPatcher(Patcher):
@@ -73,28 +194,37 @@ class ImagePatcher(Patcher):
 
     def can_apply(self, data_dir: Path) -> bool:
         modified_dir = data_dir / "modified"
-        if not modified_dir.exists():
-            return False
-        bmx_files = list(modified_dir.glob("*.BMX"))
-        scx_files = list(modified_dir.glob("*.SCX"))
-        return len(bmx_files) + len(scx_files) > 0
+        return (
+            any(modified_dir.glob("*.BMX"))
+            or any(modified_dir.glob("*.SCX"))
+            or any((data_dir / "images").glob("*.png"))
+        )
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
-        print("  Copying modified image files...")
+        images_dir = data_dir / "images"
+        if images_dir.exists():
+            print("  Building images from PNG files in images/...")
+            images_from_png(extracted_dir, images_dir, extracted_dir)
         modified_dir = data_dir / "modified"
-        image_files = list(modified_dir.glob("*.BMX")) + list(
-            modified_dir.glob("*.SCX")
-        )
-        for image_file in image_files:
-            dest = extracted_dir / image_file.name
-            shutil.copy2(image_file, dest)
-            print(f"    - {image_file.name}")
-        print(f"  ✓ Copied {len(image_files)} image files")
+        if modified_dir.exists():
+            image_files = list(modified_dir.glob("*.BMX")) + list(
+                modified_dir.glob("*.SCX")
+            )
+            for image_file in image_files:
+                shutil.copy2(image_file, extracted_dir / image_file.name)
+                print(f"    - {image_file.name}")
+            print(f"  ✓ Copied {len(image_files)} image files")
 
 
 # Register all patchers
 PATCHERS: list[Patcher] = [
     BookPatcher(),
+    DialogPatcher(),
+    ItemNamePatcher(),
+    KeywordPatcher(),
+    CombatNamePatcher(),
+    UIPatcher(),
+    MiscPatcher(),
     FontPatcher(),
     ImagePatcher(),
 ]
@@ -178,8 +308,31 @@ def patch_game(
         if rmf_path is None:
             raise ValueError("Invalid game ZIP: missing krondor.rmf in krondor/ folder")
 
+        exe_path = _find_case_insensitive_entry(krondor_dir, "krondor.exe")
+        if exe_path is None:
+            raise ValueError("Invalid game ZIP: missing krondor.exe in krondor/ folder")
+
         print("✓ Validated game structure")
         print()
+
+        print("Patching KRONDOR.EXE (characters 0x80+)...")
+        patch_exe(exe_path)
+        if find_table(data_dir, "EXE") is not None:
+            print("Applying EXE texts...")
+            font = data_dir / "modified" / "GAME.FNT"
+            import_exe_text_table(
+                exe_path, find_table(data_dir, "EXE"), font if font.exists() else None
+            )
+        print()
+
+        party_table = find_table(data_dir, "PARTY")
+        if party_table is not None:
+            startup_path = _find_case_insensitive_entry(krondor_dir, "startup.gam")
+            if startup_path is None:
+                raise ValueError("Invalid game ZIP: missing startup.gam")
+            print("Applying party member names from PARTY...")
+            import_party_table(startup_path, party_table)
+            print()
 
         # Extract game resources
         temp_resources = Path(mkdtemp(prefix="bak_patch_resources_"))
