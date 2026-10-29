@@ -10,9 +10,32 @@ from cyclopts import App
 from filebuffer import FileBuffer
 
 from baktt.encoding import decode, encode
+from baktt.fonts import Font
 from baktt.table import Row, load_translations, write_table
 
 app = App(name="book", help="Operations on the book files")
+
+
+@app.command(name="layout")
+def layout_command(bok_dir: Path, font: Path | None = None) -> None:
+    """Lay out the books as the game does: where the text of each book ends.
+
+    The font is BOOK.FNT from bok_dir by default."""
+    # book_layout imports this module
+    from baktt.book_layout import ink_bottom, layout_book  # noqa: PLC0415
+
+    book_font = Font.from_file(font or bok_dir / "BOOK.FNT")
+    for path in sorted(bok_dir.glob("*.BOK")):
+        book = Book.from_file(path)
+        layout = layout_book(book, book_font)
+        last = layout.last_page
+        assert last is not None
+        bottom = ink_bottom(layout, last, book_font, book.pages[last].y_pos)
+        lost = ", TEXT DOES NOT FIT" if layout.lost else ""
+        print(
+            f"{path.name}: {len(layout.lines)} lines, ends on page {last + 1} "
+            f"of {len(book.pages)} at y {bottom}{lost}"
+        )
 
 
 @app.command(name="display")

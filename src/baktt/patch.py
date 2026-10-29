@@ -5,11 +5,13 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import mkdtemp
 
-from baktt.book import dropcaps_import
+from baktt.book import Book, dropcaps_import
 from baktt.book import import_table as import_book_table
+from baktt.book_layout import fix_books, image_sizes
 from baktt.dialog import import_table as import_dialog_table
 from baktt.exe_patch import patch_exe
 from baktt.exe_text import import_table as import_exe_text_table
+from baktt.fonts import Font
 from baktt.images import images_from_png
 from baktt.keyword import import_table as import_keyword_table
 from baktt.misc import import_table as import_misc_table
@@ -54,6 +56,8 @@ class BookPatcher(Patcher):
         )
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        english = {p.name: Book.from_file(p) for p in extracted_dir.glob("*.BOK")}
+        english_font = Font.from_file(extracted_dir / "BOOK.FNT")
         if find_table(data_dir, "BOK") is not None:
             print("  Applying book translations from BOK...")
             # Import directly into extracted_dir (patching in place)
@@ -61,6 +65,14 @@ class BookPatcher(Patcher):
         if (data_dir / "DROPCAPS.csv").exists():
             print("  Applying drop caps from DROPCAPS.csv...")
             dropcaps_import(extracted_dir, extracted_dir, data_dir / "DROPCAPS.csv")
+        # the ends of the books and the separators follow the translated text
+        font_path = data_dir / FONTS_DIR / "BOOK.FNT"
+        if not font_path.exists():
+            font_path = extracted_dir / "BOOK.FNT"
+        sizes = image_sizes(extracted_dir / "BOOK.BMX")
+        font = Font.from_file(font_path)
+        for message in fix_books(english, extracted_dir, english_font, font, sizes):
+            print(f"  {message}")
         bok_files = list(extracted_dir.glob("*.BOK"))
         print(f"  ✓ Applied translations to {len(bok_files)} book files")
 

@@ -44,7 +44,7 @@ pass another folder as `just game=/path/to/krondor <task>`.
 * `uv run baktt export-all <game dir> <out dir>` - Export everything to translate from an installed game (1.02): one table per kind of text (`--format xlsx` for the old-games.ru translation system, `csv` for tests; columns: original, translation, key, note - see `data/README.md`), DROPCAPS.csv, the images with text as PNG (`--all-images` for all), README with the rules
 * `uv run baktt resources` - extracts/archives resource files from/to `krondor.001` / `krondor.rmf`
 * `uv run baktt fonts` - Operations on the font files (.FNT)
-* `uv run baktt book` - Operations on the book files (.BOK): texts, drop caps (`dropcaps-export`/`dropcaps-import`)
+* `uv run baktt book` - Operations on the book files (.BOK): texts, drop caps (`dropcaps-export`/`dropcaps-import`), `layout` (where the text of each book ends, laid out as the game does: `book_layout.py`, a port of the game code). `patch-game` lays out the translated books: adds pages if the text does not fit, moves the twig at the end of a book under the last line and the separators along with their paragraphs
 * `uv run baktt dialog` - Operations on the dialog files (.DDX): export texts to a table (`--locks`: word lock riddles and answers to a separate table, the wheels are generated on import), build translated files
 * `uv run baktt objinfo` - Item names (OBJINFO.DAT): export to a table, import a translation
 * `uv run baktt keyword` - Dialog topics, answer buttons and NPC names (KEYWORD.DAT)
