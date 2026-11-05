@@ -218,10 +218,21 @@ MONEY_EPILOGUE_IP = 0x0C47  # file 0x35187; overlay 130 code starts at 0x34540
 FORMAT_SPEC = re.compile(r"%[-+ #0]*\d*(?:\.\d+)?[hlFN]*[a-zA-Z%]")
 
 
+# The Borland startup code puts the stack (and the near heap) into DGROUP right
+# after its end, which is a constant there: SS = DS, SP = end + _stklen
+# (0x1000); __heapbase and __brklvl (the limit the stack checks compare SP
+# with) start at the end too. The end has to follow the grown DGROUP, or the
+# stack overwrites what was added (it did: Resource.cfg text in the money words).
+DGROUP_END = 0x6088
+STARTUP_STACK = 0x2470  # file: add di, 6088h (81 C7 88 60 at 0x246E)
+HEAP_POINTERS = (0x9A, 0x9C)  # DGROUP: __heapbase, __brklvl
+STACK_SIZE = 0x1000  # _stklen
+
+
 def grow_dgroup(data: bytes, size: int) -> tuple[bytearray, int]:
     """Insert `size` zero bytes (rounded to paragraphs) in front of the stack
-    segment, i.e. at the end of DGROUP. Returns the new EXE and the DGROUP
-    offset of the inserted area."""
+    segment, i.e. at the end of DGROUP, and move the runtime stack and near heap
+    above them. Returns the new EXE and the DGROUP offset of the inserted area."""
     d = bytearray(data)
     last_page, pages, nrel, header_paras = struct.unpack_from("<4H", d, 2)
     ss, sp = struct.unpack_from("<2H", d, 0x0E)
@@ -232,8 +243,17 @@ def grow_dgroup(data: bytes, size: int) -> tuple[bytearray, int]:
         raise ValueError("unexpected KRONDOR.EXE layout")
     paras = (size + 15) // 16
     area = (ss - DGROUP) * 16
-    if area + paras * 16 > 0x10000:
-        raise ValueError(f"DGROUP would exceed 64 KB ({area + paras * 16} bytes)")
+    end = area + paras * 16
+    if end + STACK_SIZE > 0xFFF0:
+        raise ValueError(f"DGROUP and the stack would exceed 64 KB ({end} bytes)")
+    # the old end: the original one, or the area start if grown before
+    places = [STARTUP_STACK]
+    places += [header + DGROUP * 16 + offset for offset in HEAP_POINTERS]
+    for place in places:
+        (value,) = struct.unpack_from("<H", d, place)
+        if value not in (DGROUP_END, area):
+            raise ValueError(f"unexpected DGROUP end 0x{value:04X} at 0x{place:X}")
+        struct.pack_into("<H", d, place, end)
     for i in range(nrel):
         offset, segment = struct.unpack_from("<HH", d, reloc_offset + 4 * i)
         linear = segment * 16 + offset
