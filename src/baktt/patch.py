@@ -19,6 +19,7 @@ from baktt.mnames import import_table as import_mnames_table
 from baktt.objinfo import import_table as import_objinfo_table
 from baktt.party import import_table as import_party_table
 from baktt.resources import archive_resources, extract_resources
+from baktt.scenes import NIGHT_CURSOR_IMAGE, set_night_cursor
 from baktt.table import find_table
 from baktt.ui import import_table as import_ui_table
 
@@ -227,6 +228,22 @@ class ImagePatcher(Patcher):
             print(f"  ✓ Copied {len(image_files)} image files")
 
 
+class SceneCursorPatcher(Patcher):
+    """The night hotspots of the inns get their own cursor (see baktt.scenes),
+    only together with its image: without it the hint would read "Bar"."""
+
+    @property
+    def name(self) -> str:
+        return "Scene Cursors"
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return (data_dir / "images" / NIGHT_CURSOR_IMAGE).exists()
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        changed = set_night_cursor(extracted_dir)
+        print(f"  ✓ Night cursor set for {changed} inn hotspots")
+
+
 # Register all patchers
 PATCHERS: list[Patcher] = [
     BookPatcher(),
@@ -238,6 +255,7 @@ PATCHERS: list[Patcher] = [
     MiscPatcher(),
     FontPatcher(),
     ImagePatcher(),
+    SceneCursorPatcher(),
 ]
 
 
