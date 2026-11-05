@@ -145,7 +145,10 @@ class Image:
             buf = FileBuffer(len(raw))
             buf.write(raw)
             _, compressed = buf.compressRLE()
-            raw = compressed.read()
+            # The game decodes up to a zero-length literal, not width * height:
+            # all 3107 RLE images of the game end with 00. Without it the
+            # decoder runs into the next image and corrupts memory.
+            raw = compressed.read() + b"\x00"
         return raw
 
     @classmethod
@@ -222,10 +225,35 @@ def from_png_command(src_dir: Path, png_dir: Path, dest_dir: Path) -> None:
 
     PNG names are the ones produced by bmx_to_png/scx_to_png:
     NAME.BMX_<index>.png and NAME.SCX.png. Images of a BMX without a PNG stay
-    unchanged. The palette is taken from the PALETTES tables. In BOOK.BMX
-    images may change size and new ones may be appended (the next index).
+    unchanged. The palette is taken from the PALETTES tables. BMX images may
+    change size (the size is stored for every image); in BOOK.BMX new ones may
+    be appended (the next index).
     """
     images_from_png(src_dir, png_dir, dest_dir)
+
+
+# BMX whose images all have the width rounded up to this many pixels in the
+# original: the mouse cursors (the hints over buildings are cursor images, the
+# text is on the left, padded with color 0 on the right). New images are padded
+# the same way.
+PAD_WIDTH = {"POINTERG.BMX": 8}
+
+
+def _pad_width(image: Image, multiple: int) -> Image:
+    width = -(-image.width // multiple) * multiple
+    if width == image.width:
+        return image
+    pixels = []
+    for y in range(image.height):
+        row = image.pixels[y * image.width : (y + 1) * image.width]
+        pixels += row + [0] * (width - image.width)
+    return Image(
+        width=width,
+        height=image.height,
+        flags=image.flags,
+        hires_locol=image.hires_locol,
+        pixels=pixels,
+    )
 
 
 def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
@@ -258,7 +286,15 @@ def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
                 bmx.images.append(like)
             else:
                 raise ValueError(f"{png}: no image {index} in {name}")
-            bmx.images[index] = Image.from_png(png, palette, like, allow_resize=tagged)
+            image = Image.from_png(png, palette, like, allow_resize=True)
+            if name in PAD_WIDTH:
+                image = _pad_width(image, PAD_WIDTH[name])
+            if (image.width, image.height) != (like.width, like.height):
+                print(
+                    f"  {png.name}: size {like.width}x{like.height} -> "
+                    f"{image.width}x{image.height}"
+                )
+            bmx.images[index] = image
         bmx.to_file(dest_dir / name)
         written.append(name)
     for name, png in scx_pngs.items():
@@ -754,7 +790,6 @@ class BMXResource:
 
     compression: int
     images: list[Image]
-    skips: list[bytes]
 
     def to_file(self, path: Path) -> None:
         encoded = [image.to_bytes() for image in self.images]
@@ -768,13 +803,26 @@ class BMXResource:
             buf = FileBuffer(len(uncompressed))
             buf.write(uncompressed)
             _, rle = buf.compressRLE()
-            compressed = rle.read()
+            compressed = rle.read() + b"\x00"  # end mark, as in all 56 RLE BMX
         else:
             raise AssertionError(self.compression)
 
-        out = bytearray(struct.pack("<HHH", 0x1066, self.compression, len(self.images)))
-        out += self.skips[0]
-        out += struct.pack("<I", len(uncompressed))
+        # The u16 after the image count is the size of the compressed data
+        # (low 16 bits; for LZW without the 5-byte 02 + u32 header): true for
+        # all 413 BMX of the game. A stale value hangs the game.
+        packed_size = len(compressed) - (
+            5 if self.compression == self.COMPRESSION_LZW else 0
+        )
+        out = bytearray(
+            struct.pack(
+                "<HHHHI",
+                0x1066,
+                self.compression,
+                len(self.images),
+                packed_size & 0xFFFF,
+                len(uncompressed),
+            )
+        )
         for image, data in zip(self.images, encoded, strict=True):
             if len(data) > 0xFFFF:
                 raise ValueError(f"image data is {len(data)} bytes, max 65535")
@@ -791,7 +839,7 @@ class BMXResource:
             raise ValueError("Data corruption")
         compression = buf.uint16LE()
         num_images = buf.uint16LE()
-        skips: list[bytes] = [buf.read(2)]
+        buf.skip(2)  # size of the compressed data, recalculated on write
         uncompressed_size = buf.uint32LE()
 
         image_attrs = []
@@ -825,7 +873,6 @@ class BMXResource:
         return BMXResource(
             compression=compression,
             images=images,
-            skips=skips,
         )
 
 

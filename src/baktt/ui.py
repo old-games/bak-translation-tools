@@ -1,7 +1,8 @@
 """UI texts: buttons (REQ_*.DAT), labels (LBL_*.DAT) and IN_SAVE.DAT.
 
-REQ: 28-byte window header, u16 count, count x 33-byte widget records (label
-offset at +21, -1 = no label), u16 pool size, string pool.
+REQ: 28-byte window header (window title offset at +18, -1 = no title: only
+REQ_INV2 "Select amount:" and REQ_GE3), u16 count, count x 33-byte widget
+records (label offset at +21, -1 = no label), u16 pool size, string pool.
 LBL: u16 count, count x 10-byte records (label offset at +0), u16 pool size,
 string pool.
 IN: u16 pool size, string pool, u16 count, count x 21-byte records (label
@@ -59,6 +60,7 @@ USED_FILES = [
 ]
 
 REQ_HEADER_SIZE = 28
+REQ_TITLE_POS = 18
 REQ_RECORD_SIZE = 33
 REQ_LABEL_POS = 21
 REQ_WIDTH_POS = 15
@@ -113,12 +115,19 @@ class UIFile:
         self.label_positions = [
             count_pos + 2 + record_size * i + label_pos for i in range(count)
         ]
+        # the window title is not a widget: no width limit, but its offset
+        # moves with the pool too
+        self.title_positions = [REQ_TITLE_POS] if upper.startswith("REQ_") else []
         self.strings: dict[int, bytes] = {}  # pool offset -> string, in order
         p = 0
         while p < len(pool):
             end = pool.index(b"\0", p)
             self.strings[p] = pool[p:end]
             p = end + 1
+        for pos in self.title_positions:
+            (offset,) = struct.unpack_from("<h", self.records, pos)
+            if offset != -1 and offset not in self.strings:
+                raise ValueError(f"{name}: title offset {offset} is not a string")
         # pool offset -> max label width in pixels
         self.max_widths: dict[int, int] = {}
         for pos in self.label_positions:
@@ -142,7 +151,7 @@ class UIFile:
             new_offset[offset] = len(pool)
             pool += text + b"\0"
         records = bytearray(self.records)
-        for pos in self.label_positions:
+        for pos in self.label_positions + self.title_positions:
             (offset,) = struct.unpack_from("<h", records, pos)
             if offset != -1:
                 struct.pack_into("<h", records, pos, new_offset[offset])
