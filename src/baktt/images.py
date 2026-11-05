@@ -232,6 +232,23 @@ def from_png_command(src_dir: Path, png_dir: Path, dest_dir: Path) -> None:
     images_from_png(src_dir, png_dir, dest_dir)
 
 
+# Images drawn with another palette than the rest of their BMX (PALETTES):
+# the Exit button of the full map (REQ_FMAP: button image 119 = BICONS 60,
+# odd button numbers n are the image (n + 1) / 2), normal and pressed.
+IMAGE_PALETTES: dict[tuple[str, int], str] = {
+    ("BICONS1.BMX", 60): "FULLMAP.PAL",
+    ("BICONS2.BMX", 60): "FULLMAP.PAL",
+}
+
+
+def image_palette(src_dir: Path, name: str, index: int) -> Palette:
+    """The palette of image `index` of the BMX `name`."""
+    pal_name = IMAGE_PALETTES.get((name, index)) or BMXResource.PALETTES.get(name)
+    if pal_name is None:
+        raise ValueError(f"{name}: unknown palette, add it to BMXResource.PALETTES")
+    return Palette.get_by_name(src_dir, pal_name)
+
+
 # BMX whose images all have the width rounded up to this many pixels in the
 # original: the mouse cursors (the hints over buildings are cursor images, the
 # text is on the left, padded with color 0 on the right). New images are padded
@@ -271,10 +288,6 @@ def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
     dest_dir.mkdir(parents=True, exist_ok=True)
     written = []
     for name, pngs in bmx_pngs.items():
-        pal_name = BMXResource.PALETTES.get(name)
-        if pal_name is None:
-            raise ValueError(f"{name}: unknown palette, add it to BMXResource.PALETTES")
-        palette = Palette.get_by_name(src_dir, pal_name)
         tagged = TaggedBMXResource.is_tagged(src_dir / name)
         bmx = (TaggedBMXResource if tagged else BMXResource).from_file(src_dir / name)
         for index, png in sorted(pngs.items()):
@@ -286,6 +299,7 @@ def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
                 bmx.images.append(like)
             else:
                 raise ValueError(f"{png}: no image {index} in {name}")
+            palette = image_palette(src_dir, name, index)
             image = Image.from_png(png, palette, like, allow_resize=True)
             if name in PAD_WIDTH:
                 image = _pad_width(image, PAD_WIDTH[name])
@@ -352,12 +366,12 @@ def text_images_to_png(src_dir: Path, dest_dir: Path) -> int:
             scx_to_png(src_dir / name, dest_dir)
             count += 1
             continue
-        palette = Palette.get_by_name(src_dir, BMXResource.PALETTES[name])
         path = src_dir / name
         resource = (
             TaggedBMXResource if TaggedBMXResource.is_tagged(path) else BMXResource
         ).from_file(path)
         for index in indexes or range(len(resource.images)):
+            palette = image_palette(src_dir, name, index)
             resource.images[index].to_png(dest_dir / f"{name}_{index}.png", palette)
             count += 1
     print(f"{count} images with text exported to {dest_dir}")
@@ -1188,7 +1202,10 @@ def bmx_to_png(
     palette = Palette.get_by_name(bmx_path.parent, pal_name)
     for i, image in enumerate(bmx_resource.images):
         png_path = dest_dir / f"{bmx_filename}_{i}.png"
-        image.to_png(png_path, palette)
+        own = IMAGE_PALETTES.get((bmx_filename, i))
+        image.to_png(
+            png_path, Palette.get_by_name(bmx_path.parent, own) if own else palette
+        )
 
 
 def all_bmx_to_png(src_dir: Path, dest_dir: Path) -> None:
