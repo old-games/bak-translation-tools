@@ -55,9 +55,24 @@ pass another folder as `just game=/path/to/krondor <task>`.
 * `uv run baktt images` - Operations on the image files (.PAL, .SCX, .BMX): export to PNG (`text_images_to_png` - only the images with text), build from edited PNGs (`from_png`)
 * `uv run baktt exe` - Patch `KRONDOR.EXE`: font characters 0x80+, endings right after `@` (hero names), wider dialog topic buttons
 * `uv run baktt exe-text` - Texts in `KRONDOR.EXE` (in place; longer DGROUP strings are moved to an extended DGROUP)
-* `uv run baktt patch-game` - Create a translated game archive (see `data/README.md`)
+* `uv run baktt patch-game` - Create a translated game archive (see `data/README.md`; `--cheats` enables the developers' menu)
+* `uv run baktt build-from-sp <export> <original.zip> <out.zip>` - Build the game from the project export of the old-games.ru translation system (the ZIP by export token or its folder): the kind of each text translation is told by its keys, graphics from the graphics translations, fonts from `data/fonts`. A translation error does not stop the build: the row stays in English and goes to the Markdown report (`<out>.md`) with a link to the phrase; the report also lists what the build changed on its own (wider buttons, book pages, chapter titles) and the warnings. Exit code 0 built, 2 built with translation errors, 1 failed. `--cheats` for testers
+* `sp-graphics` - Images with text for the graphics translation of the translation system: `export` (indexed PNG with the game palette, in folders by kind), `redraws` (edited PNGs to the palette of the original)
 
 Use `--help` flag to see the available options.
+
+## Automatic Build
+
+`.github/workflows/build.yml` builds the game for testers every 4 days, by hand
+(Run workflow) and on a push to main that changes the tools or the fonts: the
+project export by token from the translation system (skipped on a scheduled run
+when its ETag did not change), the original game from the build file server
+(SFTPGo REST API), `baktt build-from-sp --cheats`, then `krondor-ru-latest.zip`
+and the report `krondor-ru-latest.md` go back to the file server (overwritten);
+the report is on the summary page of the run too. The paths on the file server
+come from `manifest.json` of the export (`project.build`, set in the project
+settings of the translation system). Secrets: `OG_TRANSLATE_TOKEN`,
+`SFTPGO_URL`, `SFTPGO_API_KEY`; variable: `OG_PROJECT_ID`.
 
 ## Russian Text Encoding
 
