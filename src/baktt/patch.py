@@ -10,6 +10,7 @@ from PIL import Image as PILImage
 from baktt.book import Book, dropcaps_import
 from baktt.book import import_table as import_book_table
 from baktt.book_layout import fix_books, image_sizes
+from baktt.buttons import OTHER_FILES, resize_image_buttons
 from baktt.chapter_titles import TITLES, center_titles
 from baktt.dialog import import_table as import_dialog_table
 from baktt.exe_patch import patch_exe
@@ -24,6 +25,7 @@ from baktt.party import import_table as import_party_table
 from baktt.resources import archive_resources, extract_resources
 from baktt.scenes import NIGHT_CURSOR_IMAGE, set_night_cursor
 from baktt.table import find_table
+from baktt.ui import USED_FILES
 from baktt.ui import import_table as import_ui_table
 
 # the Russian fonts (*.FNT) in the data directory, kept in git
@@ -234,6 +236,53 @@ class ChapterTitlePatcher(Patcher):
             print(f"  {line}")
 
 
+class ButtonImagePatcher(Patcher):
+    """Image buttons (BICONS1/2.BMX) redrawn in another size: the button
+    records in the REQ screens get the same size change (buttons.py); runs
+    before ImagePatcher, while BICONS*.BMX are the original ones."""
+
+    FILES = ("BICONS1.BMX", "BICONS2.BMX")
+
+    @property
+    def name(self) -> str:
+        return "Button Sizes"
+
+    def _pngs(self, data_dir: Path) -> dict[tuple[str, int], Path]:
+        result = {}
+        for png in (data_dir / "images").rglob("*.png"):
+            stem = png.name[: -len(".png")].upper()
+            name, _, index = stem.rpartition("_")
+            if name in self.FILES and index.isdigit():
+                result[(name, int(index))] = png
+        return result
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return bool(self._pngs(data_dir))
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        originals = {
+            name: BMXResource.from_file(extracted_dir / name).images
+            for name in self.FILES
+        }
+        sizes = {}
+        for (name, index), png in self._pngs(data_dir).items():
+            like = originals[name][index]
+            with PILImage.open(png) as img:
+                width, height = aligned_width(like, img.width), img.height
+            sizes[(name, index)] = (width - like.width, height - like.height)
+        # a button shows BICONS1 and, pressed, BICONS2 of the same index
+        for (name, index), delta in sizes.items():
+            other = ("BICONS2.BMX" if name == "BICONS1.BMX" else "BICONS1.BMX", index)
+            if sizes.get(other, (0, 0)) != delta:
+                print(
+                    f"  WARNING {name}_{index}: size change {delta} differs from "
+                    f"{other[0]}_{index} {sizes.get(other, (0, 0))}"
+                )
+        files = [f for f in USED_FILES if f.startswith("REQ_")] + OTHER_FILES
+        for line in resize_image_buttons(extracted_dir, files, sizes):
+            print(f"  {line}")
+
+
 class ImagePatcher(Patcher):
     @property
     def name(self) -> str:
@@ -293,6 +342,7 @@ PATCHERS: list[Patcher] = [
     MiscPatcher(),
     FontPatcher(),
     ChapterTitlePatcher(),
+    ButtonImagePatcher(),
     ImagePatcher(),
     SceneCursorPatcher(),
 ]

@@ -13,9 +13,12 @@ record (e.g. the line after a teleport destination in REQ_TELE.DAT), so all
 strings are exported, keyed by their original pool offset, and the pool order
 is kept on rebuild.
 
-Buttons do not grow with their text, so on import every button label is
-measured with the game font (GAME.FNT) and must be at most the button width
-minus BUTTON_PADDING (the smallest margin of the original labels is 5 px).
+Every button label is measured with the game font (GAME.FNT) on import and
+must be at most the button width minus BUTTON_PADDING (the smallest margin of
+the original labels is 5 px). A text button whose label does not fit grows
+around its center to the label width + WIDEN_MARGIN, by at most
+buttons.MAX_GROW px, if it stays in its window and does not cover another
+widget (buttons.py); otherwise it is an error.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from pathlib import Path
 
 from cyclopts import App
 
+from baktt import buttons
 from baktt.encoding import decode, encode
 from baktt.fonts import Font
 from baktt.table import Row, load_translations, write_table
@@ -70,6 +74,8 @@ IN_LABEL_POS = 13
 
 FONT = "GAME.FNT"
 BUTTON_PADDING = 4
+# the margin of a widened text button: 3 px on each side
+WIDEN_MARGIN = 6
 # labels that are not drawn inside their widget: teleport points on the map,
 # a text input field
 WIDTH_UNCHECKED = {"REQ_TELE.DAT", "REQ_INV2.DAT"}
@@ -144,6 +150,47 @@ class UIFile:
                 limit = width - BUTTON_PADDING
                 self.max_widths[offset] = min(limit, self.max_widths.get(offset, limit))
 
+    def buttons_of(self, offset: int) -> list[buttons.Widget]:
+        """The REQ widgets with the label at pool offset `offset`."""
+        if self.pool_first or not self.label_positions:
+            return []
+        return [w for w in buttons.widgets(self.records) if w.label == offset]
+
+    def max_label_width(self, offset: int) -> int:
+        """The widest label at `offset`, widening its text buttons if needed."""
+        limit = self.max_widths[offset]
+        caps = [
+            max(
+                widget.w - BUTTON_PADDING,
+                buttons.max_width(widget, self.records) - WIDEN_MARGIN,
+            )
+            if widget.type == buttons.TYPE_TEXT
+            else widget.w - BUTTON_PADDING
+            for widget in self.buttons_of(offset)
+        ]
+        return min(caps, default=limit)
+
+    def widen_buttons(self, offset: int, width: int) -> list[str] | None:
+        """Widen the text buttons with the label at `offset` for a label
+        `width` px wide; None if one of them cannot grow so (nothing changes)."""
+        new = []
+        for widget in self.buttons_of(offset):
+            if width <= widget.w - BUTTON_PADDING:
+                continue
+            if widget.type != buttons.TYPE_TEXT:
+                return None
+            wider = buttons.widen(widget, width + WIDEN_MARGIN, self.records)
+            if wider is None:
+                return None
+            new.append((widget, wider))
+        report = []
+        for widget, wider in new:
+            buttons.set_geometry(self.records, wider)
+            report.append(
+                f"button {widget.w} -> {wider.w} px, x {widget.x} -> {wider.x}"
+            )
+        return report
+
     def to_bytes(self) -> bytes:
         new_offset: dict[int, int] = {}
         pool = bytearray()
@@ -193,9 +240,12 @@ def export_command(src_dir: Path, table_path: Path) -> None:
                 continue
             note = ""
             if offset in ui.max_widths:
-                note = (
-                    f"Не шире {ui.max_widths[offset]} px (английский — "
-                    f"{text_width(font, text)} px): кнопка не растягивается."
+                limit, room = ui.max_widths[offset], ui.max_label_width(offset)
+                english = text_width(font, text)
+                note = f"Не шире {limit} px (английский — {english} px)" + (
+                    f"; до {room} px кнопка растянется сама (проверить вид в игре)."
+                    if room > limit
+                    else ": кнопка не растягивается."
                 )
             rows.append(Row(_key(name, offset), decode(text), note=note))
     print(f"{write_table(table_path, rows)} UI strings exported to {table_path}")
@@ -241,11 +291,15 @@ def import_table(
                 errors.append(f"{key}: {e}")
                 continue
             if offset in ui.max_widths and width > ui.max_widths[offset]:
-                errors.append(
-                    f"{key}: {russian!r} is {width} px wide, "
-                    f"the button fits {ui.max_widths[offset]} px"
-                )
-                continue
+                report = ui.widen_buttons(offset, width)
+                if report is None:
+                    errors.append(
+                        f"{key}: {russian!r} is {width} px wide, the button fits "
+                        f"{ui.max_label_width(offset)} px (widened)"
+                    )
+                    continue
+                for line in report:
+                    print(f"  {key} {russian!r}: {line}")
             ui.strings[offset] = encoded
             used += 1
         (imported_dir / name).write_bytes(ui.to_bytes())
