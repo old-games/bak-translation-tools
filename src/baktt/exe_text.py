@@ -29,6 +29,7 @@ from pathlib import Path
 
 from cyclopts import App
 
+from baktt import report
 from baktt.encoding import decode, encode
 from baktt.fonts import Font
 from baktt.table import Row, load_translations, write_table
@@ -453,11 +454,11 @@ def import_table(exe_path: Path, table_path: Path, font: Path | None = None) -> 
                 f"{field.key}: {russian!r} is {len(encoded)} bytes, "
                 f"max {field.size - 1} (a fixed-size field)"
             )
+    before = len(errors)
     money = _money_words(translations, errors)
-    for error in errors:
-        print("ERROR", error)
-    if errors:
-        raise SystemExit(f"{len(errors)} errors")
+    if len(errors) > before:
+        money = None  # all 7 words or the English plural
+    report.translation_errors(errors)
 
     out = bytearray(data)
     for field, encoded in in_place:

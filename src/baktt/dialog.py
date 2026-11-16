@@ -32,6 +32,7 @@ from pathlib import Path
 
 from cyclopts import App
 
+from baktt import report
 from baktt.encoding import INVERSE_CHARMAP, encode
 from baktt.table import Row, load_translations, write_table
 
@@ -491,8 +492,5 @@ def import_table(
             used += 1
         (imported_dir / path.name).write_bytes(dialog.to_bytes())
     errors.extend(f"{key}: no such snippet" for key in locks)
-    for error in errors:
-        print("ERROR", error)
-    if errors:
-        raise SystemExit(f"{len(errors)} errors")
+    report.translation_errors(errors)
     print(f"{used} translated strings imported into {imported_dir}")

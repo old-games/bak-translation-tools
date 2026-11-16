@@ -11,6 +11,7 @@ from pathlib import Path
 
 from cyclopts import App
 
+from baktt import report
 from baktt.encoding import decode, encode
 from baktt.table import Row, load_translations, write_table
 
@@ -73,7 +74,11 @@ def import_table(startup_gam: Path, table_path: Path) -> None:
             continue
         if not russian.strip():
             continue
-        encoded = encode(russian)
+        try:
+            encoded = encode(russian)
+        except ValueError as e:
+            errors.append(f"{key}: {e}")
+            continue
         if not 0 < len(encoded) < NAME_SIZE:
             errors.append(
                 f"{key}: {russian!r} is {len(encoded)} bytes, max {NAME_SIZE - 1}"
@@ -82,9 +87,6 @@ def import_table(startup_gam: Path, table_path: Path) -> None:
         start = NAMES_OFFSET + NAME_SIZE * i
         data[start : start + NAME_SIZE] = encoded.ljust(NAME_SIZE, b"\0")
         used += 1
-    for error in errors:
-        print("ERROR", error)
-    if errors:
-        raise SystemExit(f"{len(errors)} errors")
+    report.translation_errors(errors)
     startup_gam.write_bytes(data)
     print(f"{used} party names written to {startup_gam}")

@@ -17,6 +17,7 @@ from pathlib import Path
 
 from cyclopts import App
 
+from baktt import report
 from baktt.encoding import decode, encode
 from baktt.exe_patch import TOPIC_BUTTON_WIDTH
 from baktt.fonts import Font
@@ -182,10 +183,7 @@ def import_table(
             continue
         keywords.strings[pointer] = encoded
         used += 1
-    for error in errors:
-        print("ERROR", error)
-    if errors:
-        raise SystemExit(f"{len(errors)} errors")
+    report.translation_errors(errors)
     imported_dir.mkdir(parents=True, exist_ok=True)
     (imported_dir / FILENAME).write_bytes(keywords.to_bytes())
     print(f"{used} keywords imported into {imported_dir}")

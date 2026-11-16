@@ -7,6 +7,7 @@ from tempfile import mkdtemp
 
 from PIL import Image as PILImage
 
+from baktt import report
 from baktt.book import Book, dropcaps_import
 from baktt.book import import_table as import_book_table
 from baktt.book_layout import fix_books, image_sizes
@@ -78,7 +79,10 @@ class BookPatcher(Patcher):
         sizes = image_sizes(extracted_dir / "BOOK.BMX")
         font = Font.from_file(font_path)
         for message in fix_books(english, extracted_dir, english_font, font, sizes):
-            print(f"  {message}")
+            if "WARNING" in message:
+                report.warning(message.replace("WARNING ", ""))
+            else:
+                report.change("Книги", message)
         bok_files = list(extracted_dir.glob("*.BOK"))
         print(f"  ✓ Applied translations to {len(bok_files)} book files")
 
@@ -233,7 +237,7 @@ class ChapterTitlePatcher(Patcher):
                 # the width the image gets in the game (padded on both sides)
                 new[i] = aligned_width(bmx.images[i], img.width)
         for line in center_titles(extracted_dir, old, new):
-            print(f"  {line}")
+            report.change("Названия глав", line)
 
 
 class ButtonImagePatcher(Patcher):
@@ -274,13 +278,13 @@ class ButtonImagePatcher(Patcher):
         for (name, index), delta in sizes.items():
             other = ("BICONS2.BMX" if name == "BICONS1.BMX" else "BICONS1.BMX", index)
             if sizes.get(other, (0, 0)) != delta:
-                print(
-                    f"  WARNING {name}_{index}: size change {delta} differs from "
+                report.warning(
+                    f"{name}_{index}: size change {delta} differs from "
                     f"{other[0]}_{index} {sizes.get(other, (0, 0))}"
                 )
         files = [f for f in USED_FILES if f.startswith("REQ_")] + OTHER_FILES
         for line in resize_image_buttons(extracted_dir, files, sizes):
-            print(f"  {line}")
+            report.change("Кнопки", line)
 
 
 class ImagePatcher(Patcher):
@@ -328,7 +332,9 @@ class SceneCursorPatcher(Patcher):
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
         changed = set_night_cursor(extracted_dir)
-        print(f"  ✓ Night cursor set for {changed} inn hotspots")
+        report.change(
+            "Курсоры", f"«Ночлег» (POINTERG 23) set for {changed} inn hotspots"
+        )
 
 
 # Register all patchers
@@ -377,10 +383,30 @@ def _ensure_lowercase_entry(parent: Path, name: str) -> Path | None:
     return entry
 
 
+# The developers' menu ("CHEAT CENTRAL", REQ_KNOC: next chapter, any items...):
+# the game reads "knockknock = <a word of exactly 29 characters>" from
+# Resource.cfg (overlay 133, file 0x35E41); then right Shift+Alt+~ on the main
+# screen opens the menu. Checked in the game 28.10.
+CHEATS_LINE = b"knockknock = " + b"1234567890" * 2 + b"123456789" + b"\r\n"
+
+
+def enable_cheats(krondor_dir: Path) -> None:
+    cfg = _find_case_insensitive_entry(krondor_dir, "resource.cfg")
+    if cfg is None:
+        raise ValueError("Invalid game ZIP: missing Resource.cfg")
+    text = cfg.read_bytes()
+    if b"knockknock" in text.lower():
+        return
+    if text and not text.endswith(b"\r\n"):
+        text += b"\r\n"
+    cfg.write_bytes(text + CHEATS_LINE)
+
+
 def patch_game(
     input_zip: Path,
     output_zip: Path,
     data_dir: Path = Path("./data"),
+    cheats: bool = False,
 ) -> None:
     """Create a patched (translated) game archive from original game ZIP.
 
@@ -388,6 +414,7 @@ def patch_game(
         input_zip: Path to original game ZIP file (must contain krondor/ folder)
         output_zip: Path where patched game ZIP will be created
         data_dir: Path to translation data directory (default: ./data)
+        cheats: enable the developers' menu (Resource.cfg, see CHEATS_LINE)
     """
     # Add data directory validation at the start
     if not data_dir.exists():
@@ -432,6 +459,10 @@ def patch_game(
 
         print("✓ Validated game structure")
         print()
+        if cheats:
+            enable_cheats(krondor_dir)
+            print("✓ Developers' menu enabled (Resource.cfg: knockknock)")
+            print()
 
         print("Patching KRONDOR.EXE (characters 0x80+)...")
         patch_exe(exe_path)

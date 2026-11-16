@@ -20,6 +20,7 @@ from pathlib import Path
 
 from cyclopts import App
 
+from baktt import report
 from baktt.encoding import decode, encode
 from baktt.fonts import Font
 from baktt.table import Row, load_translations, write_table
@@ -142,10 +143,7 @@ def import_table(
             errors.append(f"{key}: {e}")
             continue
         used += 1
-    for error in errors:
-        print("ERROR", error)
-    if errors:
-        raise SystemExit(f"{len(errors)} errors")
+    report.translation_errors(errors)
     imported_dir.mkdir(parents=True, exist_ok=True)
     (imported_dir / FILENAME).write_bytes(data)
     print(f"{used} item names imported into {imported_dir}")

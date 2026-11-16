@@ -9,6 +9,7 @@ from pathlib import Path
 from cyclopts import App
 from filebuffer import FileBuffer
 
+from baktt import report
 from baktt.encoding import decode, encode
 from baktt.fonts import Font
 from baktt.table import Row, load_translations, write_table
@@ -233,14 +234,16 @@ def import_table(bok_dir: Path, imported_dir: Path, table_path: Path) -> None:
                 if not russian.startswith(ITALIC_MARKS):
                     errors.append(f"{key}: must start with \\i or \\I, as the original")
                     continue
+                try:
+                    encode(russian)
+                except ValueError as e:
+                    errors.append(f"{key}: {e}")
+                    continue
                 text.text = russian
                 used += 1
         book.to_file(imported_dir / path.name)
     errors.extend(f"{key}: no such paragraph" for key in translations)
-    for error in errors:
-        print("ERROR", error)
-    if errors:
-        raise SystemExit(f"{len(errors)} errors")
+    report.translation_errors(errors)
     print(f"{used} translated paragraphs imported into {imported_dir}")
 
 

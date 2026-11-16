@@ -62,8 +62,10 @@ def write_table(path: Path, rows: Iterable[Row]) -> int:
     return len(rows)
 
 
-def read_table(path: Path) -> list[Row]:
-    """Rows of a .xlsx or .csv table; every row must have a unique key."""
+def read_table(path: Path, problems: list[str] | None = None) -> list[Row]:
+    """Rows of a .xlsx or .csv table; every row must have a unique key. With
+    `problems` the rows without a key or with a repeated key are skipped and
+    listed there instead of failing."""
     suffix = path.suffix.lower()
     if suffix == ".csv":
         with open(path, encoding="utf-8-sig", newline="") as f:
@@ -91,13 +93,19 @@ def read_table(path: Path) -> list[Row]:
         key = key.strip()
         if not key:
             errors.append(f"{path.name}, row {number}: no key (column C)")
+            if problems is not None:
+                continue
         elif key in seen:
             errors.append(f"{path.name}, row {number}: duplicate key {key}")
+            if problems is not None:
+                continue
         seen.add(key)
         rows.append(
             Row(key, _newlines(original), _newlines(translation), _newlines(note))
         )
-    if errors:
+    if errors and problems is not None:
+        problems.extend(errors)
+    elif errors:
         raise ValueError("\n".join(errors[:20]))
     return rows
 

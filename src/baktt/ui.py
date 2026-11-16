@@ -28,7 +28,7 @@ from pathlib import Path
 
 from cyclopts import App
 
-from baktt import buttons
+from baktt import buttons, report
 from baktt.encoding import decode, encode
 from baktt.fonts import Font
 from baktt.table import Row, load_translations, write_table
@@ -183,13 +183,13 @@ class UIFile:
             if wider is None:
                 return None
             new.append((widget, wider))
-        report = []
+        lines = []
         for widget, wider in new:
             buttons.set_geometry(self.records, wider)
-            report.append(
+            lines.append(
                 f"button {widget.w} -> {wider.w} px, x {widget.x} -> {wider.x}"
             )
-        return report
+        return lines
 
     def to_bytes(self) -> bytes:
         new_offset: dict[int, int] = {}
@@ -291,20 +291,17 @@ def import_table(
                 errors.append(f"{key}: {e}")
                 continue
             if offset in ui.max_widths and width > ui.max_widths[offset]:
-                report = ui.widen_buttons(offset, width)
-                if report is None:
+                widened = ui.widen_buttons(offset, width)
+                if widened is None:
                     errors.append(
                         f"{key}: {russian!r} is {width} px wide, the button fits "
                         f"{ui.max_label_width(offset)} px (widened)"
                     )
                     continue
-                for line in report:
-                    print(f"  {key} {russian!r}: {line}")
+                for line in widened:
+                    report.change("Кнопки", f"{key} «{russian}»: {line}")
             ui.strings[offset] = encoded
             used += 1
         (imported_dir / name).write_bytes(ui.to_bytes())
-    for error in errors:
-        print("ERROR", error)
-    if errors:
-        raise SystemExit(f"{len(errors)} errors")
+    report.translation_errors(errors)
     print(f"{used} UI strings imported into {imported_dir}")

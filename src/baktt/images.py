@@ -11,6 +11,7 @@ from filebuffer import FileBuffer
 from PIL import Image as PILImage
 from PIL import ImageDraw
 
+from baktt import report
 from baktt.compression import (
     compress_lzss,
     compress_lzw,
@@ -371,9 +372,10 @@ def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
                 continue  # an original (SP exports them where no redraw is)
             changed = True
             if (image.width, image.height) != (like.width, like.height):
-                print(
-                    f"  {png.name}: size {like.width}x{like.height} -> "
-                    f"{image.width}x{image.height}"
+                report.change(
+                    "Картинки другого размера",
+                    f"{png.name}: size {like.width}x{like.height} -> "
+                    f"{image.width}x{image.height}",
                 )
             bmx.images[index] = image
         if changed:

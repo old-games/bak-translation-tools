@@ -24,6 +24,7 @@ from pathlib import Path
 
 from cyclopts import App
 
+from baktt import report
 from baktt.encoding import decode, encode
 from baktt.table import Row, load_translations, write_table
 
@@ -197,8 +198,5 @@ def import_table(src_dir: Path, imported_dir: Path, table_path: Path) -> None:
             (imported_dir / name).write_bytes(file.to_bytes())
         except ValueError as e:
             errors.append(f"{name}: {e}")
-    for error in errors:
-        print("ERROR", error)
-    if errors:
-        raise SystemExit(f"{len(errors)} errors")
+    report.translation_errors(errors)
     print(f"{used} strings imported into {imported_dir}")
