@@ -271,21 +271,36 @@ def image_palette(src_dir: Path, name: str, index: int) -> Palette:
     return Palette.get_by_name(src_dir, pal_name)
 
 
-# BMX whose images all have the width rounded up to this many pixels in the
-# original: the mouse cursors (the hints over buildings are cursor images, the
-# text is on the left, padded with color 0 on the right). New images are padded
-# the same way.
-PAD_WIDTH = {"POINTERG.BMX": 8}
+# The width of a BMX image whose flags have the low 3 bits clear is a multiple
+# of 8 in all 3928 such images of the game (the game draws them wrong
+# otherwise: the chapter titles turned into stripes); images with these bits
+# set (0xE1..0xE7: buttons, inventory) have any width. A new image of another
+# width is padded with color 0 (transparent): on both sides, so that its
+# center stays (the chapter titles are centered by their x), the mouse cursors
+# on the right (their text is on the left, as in all the original cursors).
+WIDTH_MULTIPLE = 8
+PAD_RIGHT = {"POINTERG.BMX"}
 
 
-def _pad_width(image: Image, multiple: int) -> Image:
-    width = -(-image.width // multiple) * multiple
+def width_multiple(like: Image) -> int:
+    """The multiple the width of a new version of `like` must be."""
+    return WIDTH_MULTIPLE if like.flags & 7 == 0 else 1
+
+
+def aligned_width(like: Image, width: int) -> int:
+    """The width an image of `width` gets in place of `like`."""
+    multiple = width_multiple(like)
+    return -(-width // multiple) * multiple
+
+
+def _pad_width(image: Image, width: int, left: int) -> Image:
     if width == image.width:
         return image
+    right = width - image.width - left
     pixels = []
     for y in range(image.height):
         row = image.pixels[y * image.width : (y + 1) * image.width]
-        pixels += row + [0] * (width - image.width)
+        pixels += [0] * left + row + [0] * right
     return Image(
         width=width,
         height=image.height,
@@ -293,6 +308,13 @@ def _pad_width(image: Image, multiple: int) -> Image:
         hires_locol=image.hires_locol,
         pixels=pixels,
     )
+
+
+def align_width(name: str, image: Image, like: Image) -> Image:
+    """`image` padded to the width the game needs in place of `like`."""
+    width = aligned_width(like, image.width)
+    left = 0 if name.upper() in PAD_RIGHT else (width - image.width) // 2
+    return _pad_width(image, width, left)
 
 
 def _palette_indexes(png: PILImage.Image, palette: Palette) -> list[int] | None:
@@ -331,6 +353,7 @@ def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
     for name, pngs in bmx_pngs.items():
         tagged = TaggedBMXResource.is_tagged(src_dir / name)
         bmx = (TaggedBMXResource if tagged else BMXResource).from_file(src_dir / name)
+        changed = False
         for index, png in sorted(pngs.items()):
             if index < len(bmx.images):
                 like = bmx.images[index]
@@ -342,24 +365,37 @@ def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
                 raise ValueError(f"{png}: no image {index} in {name}")
             palette = image_palette(src_dir, name, index)
             image = Image.from_png(png, palette, like, allow_resize=True)
-            if name in PAD_WIDTH:
-                image = _pad_width(image, PAD_WIDTH[name])
+            if not tagged:
+                image = align_width(name, image, like)
+            if _same(image, like):
+                continue  # an original (SP exports them where no redraw is)
+            changed = True
             if (image.width, image.height) != (like.width, like.height):
                 print(
                     f"  {png.name}: size {like.width}x{like.height} -> "
                     f"{image.width}x{image.height}"
                 )
             bmx.images[index] = image
-        bmx.to_file(dest_dir / name)
-        written.append(name)
+        if changed:
+            bmx.to_file(dest_dir / name)
+            written.append(name)
     for name, png in scx_pngs.items():
         palette = Palette.get_by_name(src_dir, SCXResource.PALETTES[name])
         scx = SCXResource.from_file(src_dir / name)
-        scx.image = Image.from_png(png, palette, scx.image)
+        image = Image.from_png(png, palette, scx.image)
+        if _same(image, scx.image):
+            continue
+        scx.image = image
         scx.to_file(dest_dir / name)
         written.append(name)
     print(f"{len(written)} image files written to {dest_dir}")
     return written
+
+
+def _same(image: Image, like: Image) -> bool:
+    return (image.width, image.height) == (like.width, like.height) and list(
+        image.pixels
+    ) == list(like.pixels)
 
 
 # Images with text to translate: BMX (image indices) from the BMX_TEXT list

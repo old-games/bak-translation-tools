@@ -15,7 +15,7 @@ from baktt.dialog import import_table as import_dialog_table
 from baktt.exe_patch import patch_exe
 from baktt.exe_text import import_table as import_exe_text_table
 from baktt.fonts import Font
-from baktt.images import BMXResource, images_from_png
+from baktt.images import BMXResource, aligned_width, images_from_png
 from baktt.keyword import import_table as import_keyword_table
 from baktt.misc import import_table as import_misc_table
 from baktt.mnames import import_table as import_mnames_table
@@ -228,7 +228,8 @@ class ChapterTitlePatcher(Patcher):
         new = {}
         for i, png in self._pngs(data_dir).items():
             with PILImage.open(png) as img:
-                new[i] = img.width
+                # the width the image gets in the game (padded on both sides)
+                new[i] = aligned_width(bmx.images[i], img.width)
         for line in center_titles(extracted_dir, old, new):
             print(f"  {line}")
 
