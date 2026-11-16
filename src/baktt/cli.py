@@ -13,6 +13,7 @@ from baktt import (
     objinfo,
     party,
     resources,
+    sp_graphics,
     ui,
 )
 from baktt.export_all import export_all
@@ -36,6 +37,7 @@ app.command(party.app)
 app.command(ui.app)
 app.command(misc.app)
 app.command(images.app)
+app.command(sp_graphics.app)
 app.command(exe_patch.app)
 app.command(exe_text.app)
 app.command(patch_game)
