@@ -161,9 +161,12 @@ class Image:
     ) -> Image:
         """Load a PNG with the flags of `like`, mapping colors to the palette.
         Pixels whose color did not change keep their original index (palettes
-        may contain the same color several times). The size must match `like`
-        unless allow_resize."""
-        png = PILImage.open(path).convert("RGB")
+        may contain the same color several times). An indexed PNG with the
+        game palette (the SP graphics translation) is read by index. The size
+        must match `like` unless allow_resize."""
+        source = PILImage.open(path)
+        indexed = _palette_indexes(source, palette)
+        png = source.convert("RGB")
         if png.size != (like.width, like.height):
             if not allow_resize:
                 raise ValueError(
@@ -177,6 +180,17 @@ class Image:
                 flags=like.flags,
                 hires_locol=like.hires_locol,
                 pixels=[-1] * (png.size[0] * png.size[1]),
+            )
+        if indexed is not None:
+            max_index = 15 if like.hires_locol else len(palette.colors) - 1
+            if max(indexed) > max_index:
+                raise ValueError(f"{path}: color index {max(indexed)} > {max_index}")
+            return Image(
+                width=like.width,
+                height=like.height,
+                flags=like.flags,
+                hires_locol=like.hires_locol,
+                pixels=indexed,
             )
         colors = [(c.r, c.g, c.b) for c in palette.colors]
         exact: dict[tuple[int, int, int], int] = {}
@@ -232,12 +246,20 @@ def from_png_command(src_dir: Path, png_dir: Path, dest_dir: Path) -> None:
     images_from_png(src_dir, png_dir, dest_dir)
 
 
-# Images drawn with another palette than the rest of their BMX (PALETTES):
-# the Exit button of the full map (REQ_FMAP: button image 119 = BICONS 60,
-# odd button numbers n are the image (n + 1) / 2), normal and pressed.
+# Images drawn with another palette than the rest of their BMX (PALETTES).
+# Button images: the widget number n (+0x19 of a REQ record, +1 when pressed)
+# selects BICONS (overlay code at file 0x1D6F7): n > 50 -> n + 1, then odd ->
+# BICONS2 (pressed), even -> BICONS1, image n / 2.
 IMAGE_PALETTES: dict[tuple[str, int], str] = {
+    # Exit of the full map (REQ_FMAP, n = 119)
     ("BICONS1.BMX", 60): "FULLMAP.PAL",
     ("BICONS2.BMX", 60): "FULLMAP.PAL",
+    # Exit of the word lock screen (REQ_PUZL, n = 40)
+    ("BICONS1.BMX", 20): "PUZZLE.PAL",
+    ("BICONS2.BMX", 20): "PUZZLE.PAL",
+    # Exit of the chapter contents screen (CONTENTS.DAT, n = 131)
+    ("BICONS1.BMX", 66): "CONTENTS.PAL",
+    ("BICONS2.BMX", 66): "CONTENTS.PAL",
 }
 
 
@@ -273,10 +295,29 @@ def _pad_width(image: Image, multiple: int) -> Image:
     )
 
 
+def _palette_indexes(png: PILImage.Image, palette: Palette) -> list[int] | None:
+    """The pixel indexes of an indexed PNG whose palette is the game palette
+    (as many colors as the PNG has), else None."""
+    if png.mode != "P":
+        return None
+    flat = png.getpalette() or []
+    colors = [tuple(flat[i : i + 3]) for i in range(0, len(flat), 3)]
+    game = [(c.r, c.g, c.b) for c in palette.colors]
+    if not colors or colors != game[: len(colors)]:
+        return None
+    return list(png.getdata())
+
+
 def images_from_png(src_dir: Path, png_dir: Path, dest_dir: Path) -> list[str]:
+    """The PNGs may lie in subfolders (the folders of the SP graphics
+    translation): an image is found by the file name."""
     bmx_pngs: dict[str, dict[int, Path]] = {}
     scx_pngs: dict[str, Path] = {}
-    for png in sorted(png_dir.glob("*.png")):
+    seen: dict[str, Path] = {}
+    for png in sorted(png_dir.rglob("*.png")):
+        if png.name.upper() in seen:
+            raise ValueError(f"{png}: the same image as {seen[png.name.upper()]}")
+        seen[png.name.upper()] = png
         stem = png.name[: -len(".png")]
         if ".BMX_" in stem:
             name, _, index = stem.rpartition("_")

@@ -5,14 +5,17 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import mkdtemp
 
+from PIL import Image as PILImage
+
 from baktt.book import Book, dropcaps_import
 from baktt.book import import_table as import_book_table
 from baktt.book_layout import fix_books, image_sizes
+from baktt.chapter_titles import TITLES, center_titles
 from baktt.dialog import import_table as import_dialog_table
 from baktt.exe_patch import patch_exe
 from baktt.exe_text import import_table as import_exe_text_table
 from baktt.fonts import Font
-from baktt.images import images_from_png
+from baktt.images import BMXResource, images_from_png
 from baktt.keyword import import_table as import_keyword_table
 from baktt.misc import import_table as import_misc_table
 from baktt.mnames import import_table as import_mnames_table
@@ -199,6 +202,37 @@ class FontPatcher(Patcher):
         print(f"  ✓ Copied {len(font_files)} font files")
 
 
+class ChapterTitlePatcher(Patcher):
+    """Keeps the translated chapter titles (CHAPTER.BMX 12-21) centered on the
+    chapter screen; runs before ImagePatcher, while CHAPTER.BMX is the
+    original one."""
+
+    @property
+    def name(self) -> str:
+        return "Chapter Titles"
+
+    def _pngs(self, data_dir: Path) -> dict[int, Path]:
+        names = {f"CHAPTER.BMX_{i}.PNG": i for i in TITLES}
+        return {
+            names[p.name.upper()]: p
+            for p in (data_dir / "images").rglob("*.png")
+            if p.name.upper() in names
+        }
+
+    def can_apply(self, data_dir: Path) -> bool:
+        return bool(self._pngs(data_dir))
+
+    def apply(self, extracted_dir: Path, data_dir: Path) -> None:
+        bmx = BMXResource.from_file(extracted_dir / "CHAPTER.BMX")
+        old = {i: bmx.images[i].width for i in TITLES}
+        new = {}
+        for i, png in self._pngs(data_dir).items():
+            with PILImage.open(png) as img:
+                new[i] = img.width
+        for line in center_titles(extracted_dir, old, new):
+            print(f"  {line}")
+
+
 class ImagePatcher(Patcher):
     @property
     def name(self) -> str:
@@ -209,7 +243,7 @@ class ImagePatcher(Patcher):
         return (
             any(modified_dir.glob("*.BMX"))
             or any(modified_dir.glob("*.SCX"))
-            or any((data_dir / "images").glob("*.png"))
+            or any((data_dir / "images").rglob("*.png"))
         )
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
@@ -237,7 +271,10 @@ class SceneCursorPatcher(Patcher):
         return "Scene Cursors"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (data_dir / "images" / NIGHT_CURSOR_IMAGE).exists()
+        images = data_dir / "images"
+        return any(
+            p.name.upper() == NIGHT_CURSOR_IMAGE.upper() for p in images.rglob("*.png")
+        )
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
         changed = set_night_cursor(extracted_dir)
@@ -254,6 +291,7 @@ PATCHERS: list[Patcher] = [
     UIPatcher(),
     MiscPatcher(),
     FontPatcher(),
+    ChapterTitlePatcher(),
     ImagePatcher(),
     SceneCursorPatcher(),
 ]
