@@ -4,9 +4,9 @@
 # ETag), the original game from the build file server (SFTPGo), both paths
 # from manifest.json (project.build, set in SP: project settings -> "Выгрузка
 # для сборки" -> "Файлы сборки"). The build has the developers' menu on and
-# goes back to the file server as krondor-ru-latest.zip with its report
-# krondor-ru-latest.md (overwritten each time); the report is also on the
-# summary page of the run. See `baktt build-from-sp --help`.
+# goes back to the file server as krondor-ru-latest.zip (overwritten each
+# time); its report is on the summary page of the run. See
+# `baktt build-from-sp --help`.
 #
 # Secrets: OG_TRANSLATE_TOKEN (SP export token), SFTPGO_URL (without /api/v2),
 # SFTPGO_API_KEY (the build user's key). Variable: OG_PROJECT_ID.
@@ -112,6 +112,7 @@ jobs:
             exit 1
           fi
           echo "original=${dir%/}/$file" >> "$GITHUB_OUTPUT"
+          echo "original_name=$file" >> "$GITHUB_OUTPUT"
           echo "builds=${builds%/}" >> "$GITHUB_OUTPUT"
 
       - name: Download the original game
@@ -120,12 +121,15 @@ jobs:
           SFTPGO_URL: ${{ secrets.SFTPGO_URL }}
           SFTPGO_API_KEY: ${{ secrets.SFTPGO_API_KEY }}
           ORIGINAL: ${{ steps.paths.outputs.original }}
+          NAME: ${{ steps.paths.outputs.original_name }}
         run: |
           set -eu
+          # under its own name: the report shows it
+          mkdir -p original
           curl -fsSL -G -H "X-SFTPGO-API-KEY: $SFTPGO_API_KEY" --data-urlencode "path=$ORIGINAL" \
-            -o original.zip "${SFTPGO_URL%/}/api/v2/user/files"
-          unzip -tq original.zip >/dev/null
-          echo "original: $ORIGINAL ($(sha256sum original.zip | cut -c1-16)…)"
+            -o "original/$NAME" "${SFTPGO_URL%/}/api/v2/user/files"
+          unzip -tq "original/$NAME" >/dev/null
+          echo "original: $ORIGINAL ($(sha256sum "original/$NAME" | cut -c1-16)…)"
 
       - uses: actions/setup-python@v5
         if: steps.go.outputs.build == 'true'
@@ -142,10 +146,12 @@ jobs:
       - name: Build
         id: build
         if: steps.go.outputs.build == 'true'
+        env:
+          NAME: ${{ steps.paths.outputs.original_name }}
         run: |
           mkdir -p out
           set +e
-          baktt build-from-sp sp/project.zip original.zip out/krondor-ru-latest.zip \
+          baktt build-from-sp sp/project.zip "original/$NAME" out/krondor-ru-latest.zip \
             --report-path out/krondor-ru-latest.md --cheats \
             --revision "${GITHUB_SHA::7}" --sp-url "$SP_URL"
           code=$?
@@ -172,6 +178,4 @@ jobs:
               --data-binary "@$1" "${SFTPGO_URL%/}/api/v2/user/files/upload?path=$path&mkdir_parents=true"
             echo "uploaded $BUILDS/$2"
           }
-          # the game first: the report of a new build is never next to an old game
           upload out/krondor-ru-latest.zip krondor-ru-latest.zip application/zip
-          upload out/krondor-ru-latest.md krondor-ru-latest.md application/octet-stream

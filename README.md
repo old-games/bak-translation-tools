@@ -68,8 +68,8 @@ Use `--help` flag to see the available options.
 project export by token from the translation system (skipped on a scheduled run
 when its ETag did not change), the original game from the build file server
 (SFTPGo REST API), `baktt build-from-sp --cheats`, then `krondor-ru-latest.zip`
-and the report `krondor-ru-latest.md` go back to the file server (overwritten);
-the report is on the summary page of the run too. The paths on the file server
+goes back to the file server (overwritten); the report is on the summary page
+of the run. The paths on the file server
 come from `manifest.json` of the export (`project.build`, set in the project
 settings of the translation system). Secrets: `OG_TRANSLATE_TOKEN`,
 `SFTPGO_URL`, `SFTPGO_API_KEY`; variable: `OG_PROJECT_ID`.
