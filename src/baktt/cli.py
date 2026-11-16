@@ -16,6 +16,7 @@ from baktt import (
     sp_graphics,
     ui,
 )
+from baktt.build_from_sp import build_from_sp
 from baktt.export_all import export_all
 from baktt.patch import patch_game
 
@@ -42,6 +43,7 @@ app.command(exe_patch.app)
 app.command(exe_text.app)
 app.command(patch_game)
 app.command(export_all, name="export-all")
+app.command(build_from_sp, name="build-from-sp")
 
 if font_editor is not None:
     gui_app = App(name="gui", help="GUI utilities")
