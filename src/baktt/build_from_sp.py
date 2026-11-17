@@ -184,6 +184,8 @@ def humanize(message: str) -> str:
     m = re.match(r"(.+) is (\d+) px wide, max (\d+) px", message)
     if m:
         return f"{m[1]} — {m[2]} px, место — {m[3]} px"
+    if message.startswith("no text in the translation"):
+        return "в переводе только имя говорящего или разметка — нет текста реплики"
     if message.startswith("must start with"):
         return "абзац книги должен начинаться с \\i или \\I, как в оригинале"
     if message in ("no such paragraph", "no such snippet"):

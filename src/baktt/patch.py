@@ -101,7 +101,11 @@ class DialogPatcher(Patcher):
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
         ddx, locks = find_table(data_dir, "DDX"), find_table(data_dir, "LOCKS")
         print("  Applying dialog translations from DDX/LOCKS...")
-        import_dialog_table(extracted_dir, extracted_dir, ddx, locks)
+        # the popups are fitted with the Russian font, which is copied later
+        font = data_dir / FONTS_DIR / "GAME.FNT"
+        import_dialog_table(
+            extracted_dir, extracted_dir, ddx, locks, font if font.exists() else None
+        )
 
 
 class ItemNamePatcher(Patcher):

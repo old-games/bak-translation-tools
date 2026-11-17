@@ -34,6 +34,7 @@ from cyclopts import App
 
 from baktt import report
 from baktt.encoding import INVERSE_CHARMAP, encode
+from baktt.fonts import Font
 from baktt.table import Row, load_translations, write_table
 
 app = App(name="dialog", help="Operations on the dialog files (.DDX)")
@@ -48,6 +49,16 @@ TEXT_BUFFER_SIZE = 0x3C8C
 SUBSTITUTION_SIZE = 40
 KEY_MASK = 0xF0000000
 PUSH_NEXT_DIALOG = 0x10
+# action SetPopupDimensions: x, y, width, height (u16) of the text window.
+# Some windows are as wide as their English text + FITTED_MARGIN (the chapter
+# captions on the map: 20-21 px); a wider translation would wrap and the window
+# shows its last lines only ("смертью" of chapter 4). Such a window grows with
+# the translation, the same margin, on the screen. A window with room for more
+# lines than the English text has (a help text that wraps) is not fitted.
+SET_POPUP_DIMENSIONS = 6
+FITTED_MARGIN = range(18, 24)
+LINE_ROOM = 12  # px per line: the 2-line chapter captions are 30 px high
+SCREEN_WIDTH = 320
 
 
 @dataclass
@@ -396,14 +407,20 @@ def export_command(
 
 @app.command(name="import")
 def import_command(
-    ddx_dir: Path, imported_dir: Path, table_path: Path, *, locks: Path | None = None
+    ddx_dir: Path,
+    imported_dir: Path,
+    table_path: Path,
+    *,
+    locks: Path | None = None,
+    font: Path | None = None,
 ) -> None:
     """Build DDX files with the translation from a table (empty = keep original).
 
     --locks: the word lock table (riddle and answer rows); the wheels of a
     translated answer are generated.
+    --font: the Russian GAME.FNT to widen the popups fitted to their text.
     """
-    import_table(ddx_dir, imported_dir, table_path, locks)
+    import_table(ddx_dir, imported_dir, table_path, locks, font)
 
 
 def export_table(ddx_dir: Path, path: Path, locks_path: Path | None = None) -> None:
@@ -433,12 +450,60 @@ def export_table(ddx_dir: Path, path: Path, locks_path: Path | None = None) -> N
         print(f"{len(lock_rows) // 2} word locks exported to {locks_path}")
 
 
+def _line_widths(font: Font, text: bytes) -> list[int]:
+    """The width of every line of a snippet text (the codes >= 0xE0 are
+    markup: no width)."""
+    return [
+        sum(
+            font.glyphs[c - font.first].width
+            for c in line
+            if c < 0xE0 and 0 <= c - font.first < len(font.glyphs)
+        )
+        for line in text.split(b"\n")
+    ]
+
+
+def fit_popup(snippet: Snippet, english: bytes, en_font: Font, font: Font) -> str:
+    """Widen a popup fitted to its English text for the translation; a report
+    line or ""."""
+    for action in snippet.actions:
+        if struct.unpack_from("<H", action, 0)[0] != SET_POPUP_DIMENSIONS:
+            continue
+        x, _y, width, height = struct.unpack_from("<4H", action, 2)
+        widths = _line_widths(en_font, english)
+        margin = width - max(widths)
+        if margin not in FITTED_MARGIN or height > LINE_ROOM * len(widths) + 10:
+            continue
+        needed = max(_line_widths(font, snippet.text)) + margin
+        if needed <= width:
+            continue
+        new = min(needed, SCREEN_WIDTH - 2 * x)
+        struct.pack_into("<H", action, 6, new)
+        return f"popup width {width} -> {new} px" + (
+            "" if new == needed else f" (the text needs {needed} px)"
+        )
+    return ""
+
+
+def _spoken(text: str) -> str:
+    """The text of a snippet without the speaker titles (#Name#), the markup
+    codes ({F0}, {E1}...) and the whitespace: empty if nothing is said."""
+    text = re.sub(r"#[^#\n]*#", "", text)
+    text = re.sub(r"\{/?[0-9A-F]{2}\}", "", text)
+    return "".join(text.split())
+
+
 def import_table(
     ddx_dir: Path,
     imported_dir: Path,
     path: Path | None,
     locks_path: Path | None = None,
+    font_path: Path | None = None,
 ) -> None:
+    """`font_path`: the Russian GAME.FNT to fit the popups (default: the one in
+    ddx_dir); the English text is measured with GAME.FNT of ddx_dir."""
+    en_font = Font.from_file(ddx_dir / "GAME.FNT")
+    font = Font.from_file(font_path) if font_path else en_font
     translations = load_translations(path) if path else {}
     locks = load_lock_translations(locks_path) if locks_path else {}
     imported_dir.mkdir(parents=True, exist_ok=True)
@@ -470,6 +535,11 @@ def import_table(
                 continue
             if not russian.strip():
                 continue
+            if _spoken(english) and not _spoken(russian):
+                errors.append(
+                    f"{key}: no text in the translation, only the speaker or markup"
+                )
+                continue
             if parse_wordlock(english):
                 problems = check_wordlock(russian, english)
                 if problems:
@@ -488,7 +558,11 @@ def import_table(
                     f"{TEXT_BUFFER_SIZE})"
                 )
                 continue
+            english_text = snippet.text
             snippet.text = text
+            fitted = fit_popup(snippet, english_text, en_font, font)
+            if fitted:
+                report.change("Окна диалогов", f"{key}: {fitted}")
             used += 1
         (imported_dir / path.name).write_bytes(dialog.to_bytes())
     errors.extend(f"{key}: no such snippet" for key in locks)
