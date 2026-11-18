@@ -16,7 +16,8 @@ order and all offsets (index, choice targets, action 0x10 targets) are
 relocated.
 
 Text markup in the tables:
-  {F0}..{F4}        - bytes F0..F4 (style of the next word);
+  {F0}..{F4}        - bytes F0..F4 (style of the next word; {F0} ends the
+                      style where no space follows: {F1}you{F0}!);
   {E1}text{/E1}     - byte E1 before every character of the text (same for E3...);
   {XX}              - any other byte that is not in the encoding;
   tabs and newlines are kept as is (a tab starts a paragraph).

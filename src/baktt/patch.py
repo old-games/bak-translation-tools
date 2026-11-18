@@ -239,7 +239,14 @@ class ChapterTitlePatcher(Patcher):
         for i, png in self._pngs(data_dir).items():
             with PILImage.open(png) as img:
                 # the width the image gets in the game (padded on both sides)
-                new[i] = aligned_width(bmx.images[i], img.width)
+                width = aligned_width(bmx.images[i], img.width)
+                pad = (width - img.width) // 2
+                # the visible pixels (transparent: tRNS / alpha)
+                box = None
+                if "transparency" in img.info or "A" in img.getbands():
+                    box = img.convert("RGBA").getchannel("A").getbbox()
+                left, right = (box[0], box[2]) if box else (0, img.width)
+                new[i] = (width, pad + left, pad + right)
         for line in center_titles(extracted_dir, old, new):
             report.change("Названия глав", line)
 

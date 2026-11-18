@@ -1,11 +1,11 @@
-"""Chapter titles (CHAPTER.BMX 12-21): keep them centered when their width
-changes.
+"""Chapter titles (CHAPTER.BMX 12-21): center them when their width changes.
 
 The chapter screen script (CHAPTER1..9.TTM, CHAPTERE.TTM) draws the title with
 DRAW_SPRITE (0xA500: x, y, image, 0) at an x of its own: the English titles
-are centered by it. A translated title of another width is moved so that its
-center stays where the center of the English one was (the original titles are
-not exactly at the middle of the screen), within the screen.
+are centered by it, though not exactly (their centers are 156-167 px; chapter
+4 is 7 px to the right, which a wider title makes visible: 18.11). A
+translated title of another width is moved so that its visible pixels are
+centered on the screen, within the screen.
 
 TTM: tags VER:, PAG:, TT3:, TTI:...; TT3: u8 compression (1 = RLE), u32 size,
 the RLE data (BaKGL bak/scene/scene.cpp). A command is u16 code | number of
@@ -65,21 +65,25 @@ def _title_x(data: bytes) -> tuple[int, int, int]:
 
 
 def center_titles(
-    scripts_dir: Path, old_widths: dict[int, int], new_widths: dict[int, int]
+    scripts_dir: Path,
+    old_widths: dict[int, int],
+    new_titles: dict[int, tuple[int, int, int]],
 ) -> list[str]:
-    """Move the titles whose width changes (image -> width); returns a report."""
+    """Move the titles whose width changes; `new_titles` is image -> (width,
+    first and after the last column of visible pixels). Returns a report."""
     report = []
     for name in SCRIPTS:
         path = scripts_dir / name
         data = bytearray(path.read_bytes())
         image, x, pos = _title_x(data)
-        if image not in new_widths or new_widths[image] == old_widths[image]:
+        if image not in new_titles or new_titles[image][0] == old_widths[image]:
             continue
-        old, new = old_widths[image], new_widths[image]
+        old = old_widths[image]
+        new, left, right = new_titles[image]
         if new > SCREEN_WIDTH:
             raise ValueError(f"CHAPTER.BMX_{image}: {new} px is wider than the screen")
-        center2 = 2 * x + old  # twice the center of the English title
-        new_x = min(max((center2 - new) // 2, 0), SCREEN_WIDTH - new)
+        new_x = (SCREEN_WIDTH - left - right) // 2
+        new_x = min(max(new_x, 0), SCREEN_WIDTH - new)
         assert struct.unpack_from("<h", data, pos)[0] == x
         struct.pack_into("<h", data, pos, new_x)
         path.write_bytes(bytes(data))
