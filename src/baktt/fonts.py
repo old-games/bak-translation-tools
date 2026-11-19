@@ -7,6 +7,8 @@ import bitstring
 from cyclopts import App
 from filebuffer import FileBuffer
 
+from baktt.encoding import INVERSE_CHARMAP
+
 app = App(name="fonts", help="Operations on the font files")
 
 
@@ -20,6 +22,123 @@ def display_command(font_path: Path) -> None:
 def copy_command(src: Path, dest: Path) -> None:
     """Copy a font file."""
     copy_font(src, dest)
+
+
+@app.command(name="from-bdf")
+def from_bdf_command(bdf: Path, base: Path, dest: Path) -> None:
+    """Replace glyphs of the font BASE with the glyphs of a BDF font.
+
+    The BDF is downloaded from the SP font bank."""
+    font = Font.from_file(base)
+    changed = apply_bdf(font, bdf)
+    print(f"{bdf.name} -> {dest}: {len(changed)} glyphs changed")
+    if changed:
+        print("  " + " ".join(changed))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    font.to_file(dest)
+
+
+def game_char(code: int) -> str:
+    """The character a game code stands for (see encoding.py)."""
+    if code == 0x7F:
+        return "\u2302"  # ⌂, as in the export for SP
+    return chr(code) if code < 0x80 else INVERSE_CHARMAP.get(code, "")
+
+
+def parse_bdf(path: Path) -> tuple[int, int, dict[int, tuple[int, list[int]]]]:
+    """BDF -> (ascent, descent, {unicode: (advance, rows from the top of the cell)}).
+
+    Rows are 16-bit with the leftmost pixel in bit 15, height = ascent + descent.
+    """
+    ascent = descent = None
+    chars: dict[int, tuple[int, list[int]]] = {}
+    lines = iter(path.read_text(encoding="utf-8").splitlines())
+    for line in lines:
+        key, _, value = line.partition(" ")
+        if key == "FONT_ASCENT":
+            ascent = int(value)
+        elif key == "FONT_DESCENT":
+            descent = int(value)
+        elif key == "STARTCHAR":
+            if ascent is None or descent is None:
+                raise ValueError(f"{path}: no FONT_ASCENT/FONT_DESCENT before glyphs")
+            enc = adv = bbx = None
+            for line in lines:
+                key, _, value = line.partition(" ")
+                if key == "ENCODING":
+                    enc = int(value.split()[0])
+                elif key == "DWIDTH":
+                    adv = int(value.split()[0])
+                elif key == "BBX":
+                    bbx = [int(v) for v in value.split()]
+                elif key == "BITMAP":
+                    break
+            if enc is None or adv is None or bbx is None:
+                raise ValueError(f"{path}: glyph without ENCODING/DWIDTH/BBX")
+            w, h, xoff, yoff = bbx
+            bitmap = []
+            for line in lines:
+                if line.startswith("ENDCHAR"):
+                    break
+                bitmap.append(int(line, 16) if line.strip() else 0)
+            if len(bitmap) != h:
+                raise ValueError(
+                    f"{path}: U+{enc:04X} has {len(bitmap)} rows, BBX says {h}"
+                )
+            height = ascent + descent
+            rows = [0] * height
+            top = ascent - (h + yoff)
+            nbits = ((w + 7) // 8) * 8
+            where = f"{path}: U+{enc:04X} {chr(enc)!r}"
+            for i, bits in enumerate(bitmap):
+                bits &= ((1 << nbits) - 1) ^ ((1 << (nbits - w)) - 1)  # only BBX width
+                if not bits:
+                    continue
+                y = top + i
+                shift = 16 - nbits - xoff
+                if not 0 <= y < height:
+                    raise ValueError(f"{where}: pixels outside the cell height")
+                if xoff < 0 or w + xoff > 16:
+                    raise ValueError(f"{where}: pixels outside 16 px")
+                rows[y] |= bits << shift if shift >= 0 else bits >> -shift
+            chars[enc] = (adv, rows)
+    if ascent is None or descent is None:
+        raise ValueError(f"{path}: no FONT_ASCENT/FONT_DESCENT")
+    return ascent, descent, chars
+
+
+def apply_bdf(font: Font, bdf: Path) -> list[str]:
+    """Put the BDF glyphs into the font at their game codes.
+
+    Returns the changed characters."""
+    ascent, descent, chars = parse_bdf(bdf)
+    if ascent + descent != font.height:
+        raise ValueError(
+            f"{bdf}: height {ascent}+{descent}, the font {font.name} has {font.height}"
+        )
+    codes = {game_char(c): c for c in range(font.first, font.first + len(font.glyphs))}
+    changed: list[str] = []
+    errors: list[str] = []
+    for u, (adv, rows) in chars.items():
+        ch = chr(u)
+        code = codes.get(ch)
+        if code is None or ch == "":
+            errors.append(f"U+{u:04X} {ch!r}: not in the game layout")
+            continue
+        if not 0 <= adv <= 16:
+            errors.append(f"U+{u:04X} {ch!r}: width {adv} (max 16)")
+            continue
+        if any(row & ((1 << (16 - adv)) - 1) for row in rows):
+            errors.append(f"U+{u:04X} {ch!r}: pixels to the right of the width {adv}")
+            continue
+        glyph = Glyph(width=adv, rows=rows)
+        old = font.glyphs[code - font.first]
+        if (old.width, old.rows) != (glyph.width, glyph.rows):
+            font.glyphs[code - font.first] = glyph
+            changed.append(ch)
+    if errors:
+        raise ValueError(f"{bdf.name}:\n  " + "\n  ".join(errors))
+    return changed
 
 
 def display_font(font_path: Path) -> None:
