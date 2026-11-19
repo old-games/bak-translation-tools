@@ -67,8 +67,9 @@ Use `--help` flag to see the available options.
 (Run workflow) and on a push to main that changes the tools or the fonts: the
 project export by token from the translation system (skipped on a scheduled run
 when its ETag did not change), the original game from the build file server
-(SFTPGo REST API), `baktt build-from-sp --cheats`, then `krondor-ru-latest.zip`
-goes back to the file server (overwritten); the report is on the summary page
+(SFTPGo REST API), `baktt build-from-sp --cheats`, then `Krondor_build_<month><year>.zip`
+(`Krondor_build_nov2026.zip`, Moscow time) goes back to the file server
+(overwritten during the month: the last build of each month stays); the report is on the summary page
 of the run. The paths on the file server
 come from `manifest.json` of the export (`project.build`, set in the project
 settings of the translation system). Secrets: `OG_TRANSLATE_TOKEN`,

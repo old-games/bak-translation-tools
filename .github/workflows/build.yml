@@ -4,8 +4,10 @@
 # ETag), the original game from the build file server (SFTPGo), both paths
 # from manifest.json (project.build, set in SP: project settings -> "Выгрузка
 # для сборки" -> "Файлы сборки"). The build has the developers' menu on and
-# goes back to the file server as krondor-ru-latest.zip (overwritten each
-# time); its report is on the summary page of the run. See
+# goes back to the file server as Krondor_build_<month><year>.zip (Moscow time,
+# Krondor_build_nov2026.zip; overwritten during the month: the last build of each
+# month stays for history, as in UltimaVI-ru); its report is on the summary
+# page of the run. See
 # `baktt build-from-sp --help`.
 #
 # Secrets: OG_TRANSLATE_TOKEN (SP export token), SFTPGO_URL (without /api/v2),
@@ -151,13 +153,13 @@ jobs:
         run: |
           mkdir -p out
           set +e
-          baktt build-from-sp sp/project.zip "original/$NAME" out/krondor-ru-latest.zip \
-            --report-path out/krondor-ru-latest.md --cheats \
+          baktt build-from-sp sp/project.zip "original/$NAME" out/krondor-ru.zip \
+            --report-path out/krondor-ru.md --cheats \
             --revision "${GITHUB_SHA::7}" --sp-url "$SP_URL"
           code=$?
           set -e
           echo "code=$code" >> "$GITHUB_OUTPUT"
-          if [ -f out/krondor-ru-latest.md ]; then cat out/krondor-ru-latest.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f out/krondor-ru.md ]; then cat out/krondor-ru.md >> "$GITHUB_STEP_SUMMARY"; fi
           case $code in
             0) ;;
             2) echo "::warning::built with translation errors, see the report" ;;
@@ -178,4 +180,6 @@ jobs:
               --data-binary "@$1" "${SFTPGO_URL%/}/api/v2/user/files/upload?path=$path&mkdir_parents=true"
             echo "uploaded $BUILDS/$2"
           }
-          upload out/krondor-ru-latest.zip krondor-ru-latest.zip application/zip
+          # for history: the last build of each month (Krondor_build_nov2026.zip)
+          month=$(TZ=Europe/Moscow LC_ALL=C date +%b%Y | tr '[:upper:]' '[:lower:]')
+          upload out/krondor-ru.zip "Krondor_build_$month.zip" application/zip
