@@ -8,12 +8,13 @@ from tempfile import mkdtemp
 from PIL import Image as PILImage
 
 from baktt import report
-from baktt.book import Book, dropcaps_import
+from baktt.book import Book
 from baktt.book import import_table as import_book_table
 from baktt.book_layout import fix_books, image_sizes
 from baktt.buttons import OTHER_FILES, resize_image_buttons
 from baktt.chapter_titles import TITLES, center_titles
 from baktt.dialog import import_table as import_dialog_table
+from baktt.dropcaps import apply_dropcaps
 from baktt.exe_patch import patch_exe
 from baktt.exe_text import import_table as import_exe_text_table
 from baktt.fonts import Font
@@ -31,6 +32,8 @@ from baktt.ui import import_table as import_ui_table
 
 # the Russian fonts (*.FNT) in the data directory, kept in git
 FONTS_DIR = "fonts"
+# the Russian drop caps of the books (<letter>.png, boxes.csv), kept in git
+DROPCAPS_DIR = "dropcaps"
 
 
 class Patcher(ABC):
@@ -57,21 +60,19 @@ class BookPatcher(Patcher):
         return "Book Translations"
 
     def can_apply(self, data_dir: Path) -> bool:
-        return (
-            find_table(data_dir, "BOK") is not None
-            or (data_dir / "DROPCAPS.csv").exists()
-        )
+        return find_table(data_dir, "BOK") is not None
 
     def apply(self, extracted_dir: Path, data_dir: Path) -> None:
         english = {p.name: Book.from_file(p) for p in extracted_dir.glob("*.BOK")}
         english_font = Font.from_file(extracted_dir / "BOOK.FNT")
-        if find_table(data_dir, "BOK") is not None:
-            print("  Applying book translations from BOK...")
-            # Import directly into extracted_dir (patching in place)
-            import_book_table(extracted_dir, extracted_dir, find_table(data_dir, "BOK"))
-        if (data_dir / "DROPCAPS.csv").exists():
-            print("  Applying drop caps from DROPCAPS.csv...")
-            dropcaps_import(extracted_dir, extracted_dir, data_dir / "DROPCAPS.csv")
+        print("  Applying book translations from BOK...")
+        # Import directly into extracted_dir (patching in place)
+        import_book_table(extracted_dir, extracted_dir, find_table(data_dir, "BOK"))
+        # the drop caps by the first letters of the translation (baktt.dropcaps)
+        caps = apply_dropcaps(
+            english, extracted_dir, extracted_dir, data_dir / DROPCAPS_DIR
+        )
+        print(f"  {len(caps)} drop caps set")
         # the ends of the books and the separators follow the translated text
         font_path = data_dir / FONTS_DIR / "BOOK.FNT"
         if not font_path.exists():

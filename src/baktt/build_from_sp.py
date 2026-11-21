@@ -4,8 +4,8 @@ The export (the project archive by token, see SP.md in the work folder or
 https://translate.old-games.ru/docs/tools/): manifest.json, a table per text
 translation, a folder of PNG per graphics translation. The kind of a text
 translation (DDX, BOK, UI...) is told by its keys, not by its title, so renaming
-a translation in SP changes nothing. The fonts are not in the export: they come
-from the repository (data/fonts).
+a translation in SP changes nothing. The fonts and the drop caps of the books are
+not in the export: they come from the repository (data/fonts, data/dropcaps).
 
 An error in a row of a translation (a character the game font does not have,
 a label wider than its button...) does not stop the build: the row stays in
@@ -310,6 +310,7 @@ def build_from_sp(
     *,
     report_path: Path | None = None,
     fonts: Path = Path("data/fonts"),
+    dropcaps: Path = Path("data/dropcaps"),
     cheats: bool = False,
     revision: str | None = None,
     sp_url: str = SP_URL,
@@ -328,6 +329,9 @@ def build_from_sp(
         The Markdown report (default: OUTPUT with .md).
     fonts
         The Russian fonts (*.FNT), default data/fonts of the repository.
+    dropcaps
+        The Russian drop caps of the books (<letter>.png, boxes.csv), default
+        data/dropcaps of the repository (may be absent).
     cheats
         Enable the developers' menu (for testers).
     revision
@@ -351,6 +355,8 @@ def build_from_sp(
             if not fonts.is_dir():
                 raise ValueError(f"no fonts folder {fonts}")
             shutil.copytree(fonts, data / "fonts")
+            if dropcaps.is_dir():
+                shutil.copytree(dropcaps, data / "dropcaps")
             _place_texts(folder, translations, data, problems)
             _place_graphics(folder, translations, data)
             for problem in problems:

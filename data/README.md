@@ -2,7 +2,7 @@
 
 This folder contains translation source files used by the `baktt patch-game` command.
 
-**Copyright Notice:** All files in this folder (except this README.md and the Russian fonts in `fonts/`) are git-ignored due to copyright protection.
+**Copyright Notice:** All files in this folder (except this README.md, the Russian fonts in `fonts/` and the drop caps in `dropcaps/`) are git-ignored due to copyright protection.
 
 ## Translation tables
 
@@ -98,7 +98,15 @@ Used by: ImagePatcher
 Drop caps of the books, exported with `baktt book dropcaps-export`: the
 letter, its BOOK.BMX image and the size of the box the text flows around.
 Fill `new_image` (and optionally `new_box_width`/`new_box_height`) to use a
-new letter.
+new letter. Only for `baktt book dropcaps-import` by hand: the build chooses the
+drop caps itself (see `dropcaps/`).
+
+### `dropcaps/`
+
+The Russian drop caps of the books, kept in git: `<letter>.png` (e.g. `Д.png`),
+optional `boxes.csv`. The build takes the first letter of the translated first
+paragraph, puts its drop cap and removes the letter from the text (see
+`dropcaps/README.md`, `src/baktt/dropcaps.py`).
 
 Used by: BookPatcher
 

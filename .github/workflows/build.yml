@@ -23,6 +23,7 @@ on:
     paths:
       - "src/**"
       - "data/fonts/**"
+      - "data/dropcaps/**"
       - "lib/filebuffer/**"
       - "pyproject.toml"
       - ".github/workflows/build.yml"
