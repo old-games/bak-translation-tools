@@ -10,7 +10,8 @@ translation the build looks at the first letter of the translated paragraph:
   the paragraph stays English with the English drop cap;
 - the letter is removed from the text (translators write the whole word);
 - the rectangle the text flows around (x1, y1, x2, y2) keeps its margins: x2, y2
-  move by the difference of the image sizes. data/dropcaps/boxes.csv (book, x1,
+  move by the difference of the image sizes; with another image it covers at
+  least all of the new letter. data/dropcaps/boxes.csv (book, x1,
   y1, x2, y2; empty = automatic) sets it by hand.
 
 The images are 16-color with BOOK.PAL, color 0 is transparent; the width is padded
@@ -86,6 +87,17 @@ def _pad(image: Image) -> Image:
         row = image.pixels[y * image.width : (y + 1) * image.width]
         pixels += row + [0] * (width - image.width)
     return Image(width, image.height, image.flags, image.hires_locol, pixels)
+
+
+def ink_extent(image: Image) -> tuple[int, int]:
+    """(last column, last row) with a non-transparent pixel (color 0 is
+    transparent)."""
+    right = bottom = 0
+    for i, pixel in enumerate(image.pixels):
+        if pixel:
+            right = max(right, i % image.width)
+            bottom = max(bottom, i // image.width)
+    return right, bottom
 
 
 def load_boxes(path: Path) -> dict[str, list[int | None]]:
@@ -164,6 +176,12 @@ def apply_dropcaps(
         old_w, old_h = sizes[cap.id]
         new_w, new_h = sizes[image]
         auto = [box.x_pos, box.y_pos, box.id + new_w - old_w, box.flag + new_h - old_h]
+        if image != cap.id:
+            # the original box may let the text under a part of the old letter
+            # (the bowl of P, the bar of T): the new letter is covered whole
+            right, bottom = ink_extent(bmx.images[image])
+            auto[2] = max(auto[2], cap.x_pos + right + 1)
+            auto[3] = max(auto[3], cap.y_pos + bottom)
         manual = boxes.pop(name, [None] * 4)
         x1, y1, x2, y2 = [
             a if m is None else m for a, m in zip(auto, manual, strict=True)
